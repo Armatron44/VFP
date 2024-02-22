@@ -1,1 +1,7 @@
-Examples/VFP_NS.pkl
+Legacy/
+Tests/
+Examples/Fit NR+XRR with VFP.ipynb
+Examples/zero_thickness_VFP_understanding.ipynb
+Examples/Generate_data_for_Example1.ipynb
+Examples/__pycache__
+Examples/.ipynb_checkpoints
