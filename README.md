@@ -4,9 +4,7 @@ Calculate neutron and x-ray reflectivity profiles via generation of volume fract
 
 ## Installation
 
-```bash
-$ pip install vfp
-```
+- TODO
 
 ## Usage
 
