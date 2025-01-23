@@ -1,24 +1,35 @@
-import numpy as np
+#standard 
 import warnings
-from calc import calc_dzs, calc_zeds, init_demag, integrate_vfp, calc_vfp
-from plotting import model_plot
 
+#third party
+import numpy as np
+import matplotlib
 from refnx.analysis import possibly_create_parameter
-from refnx.analysis.parameter import _BinaryOp
-from bumps.parameter import Operator 
-from bumps.parameter import Parameter as bumpsParameter
+from refnx.analysis.parameter import Parameter, _BinaryOp
 
+try:
+    from bumps.parameter import Operator 
+    from bumps.parameter import Parameter as bumpsParameter
+except ImportError as ie:
+    print(f"{ie}. Could not import from bumps.parameter. Bumps package not installed.")
+
+# this module
+from vfp.calc import calc_dzs, calc_zeds, init_demag, integrate_vfp, calc_vfp
+from vfp.plotting import model_plot
 
 class BaseVFP:
-    def __init__(self):
+    def __init__(self) -> None:
         # create vfp model.
         self.process_model()
 
-    def __repr__(self):
-        """Returns simple string description of the VFP.
+    def __repr__(self) -> str:
+        """
+        Returns simple string description of the VFP.
 
-        Returns:
-            str : Returns a printable representation of the VFP, describing VFP type, parameters and values.
+        Returns
+        -------
+            str : Returns a printable representation of the VFP, 
+            describing VFP type, parameters and values.
         """
 
         s = (f"VFP Name - {self.name} \n"
@@ -31,7 +42,7 @@ class BaseVFP:
              f"Demag Widths - {self.demagwidths} \n")
         return s
 
-    def process_model(self):
+    def process_model(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Main function of the VFP class, and is called via the slabs() method.
         Calculates the length of the VFP, the thicknesses of each microslice
@@ -41,9 +52,12 @@ class BaseVFP:
         
         Returns
         -------
-        return_slds : np.array (1d) - Shape = (len(zeds) - self.indices)
-        return_islds : np.array (1d) - Shape = (len(zeds) - self.indices)
-        self.dz : np.array (1d) - Shape = (len(zeds) - self.indices)
+        return_slds : np.array (1d)
+            Shape = (len(zeds) - self.indices)
+        return_islds : np.array (1d)
+            Shape = (len(zeds) - self.indices)
+        self.dz : np.array (1d)
+            Shape = (len(zeds) - self.indices)
         """
         # update tuple variants of parameters.
         self._tuple_pars()
@@ -96,15 +110,17 @@ class BaseVFP:
 
         return return_slds, return_islds, self.dz
     
-    def get_slds(self):
+    def get_slds(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Calculate SLDs from VFPs.
         Initially, the VFP is calculated and then it is reduced via self.init_demag.
         
         Returns
         -------
-        SLD : coherent SLDs (nuclear or nuclear +/- magnetic) (1d).
-        iSLD : imaginary SLDs (1d).
+        SLD : np.ndarray
+            coherent SLDs (nuclear or nuclear +/- magnetic) (1d).
+        iSLD : np.ndarray
+            imaginary SLDs (1d).
         """
 
         # calculate the volume fraction profiles of the layers in the interface.
@@ -124,7 +140,7 @@ class BaseVFP:
 
         return SLD, iSLD
     
-    def calc_slds(self, reduced=True):
+    def calc_slds(self, reduced: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculates coherent (nuclear or nuclear +/- magnetic depending on self.spin_state) 
         and imaginary SLDs with VFPs (reduced or full).
@@ -132,18 +148,22 @@ class BaseVFP:
         Parameters
         ----------
         reduced : Boolean
-                    If True/False, calculates the reduced/full SLD profiles
+            If True/False, calculates the reduced/full SLD profiles
         
         Returns
         -------
-        tot_sld : coherent SLDs (nuclear or nuclear +/- magnetic SLD)
-                    np.array (1d) - Shape = (Nlayers, len(z))
-        sum_isldn_list : imaginary SLDs 
-                            np.array (1d) - Shape = (Nlayers, len(z))
-        sum_sldn_list : coherent nuclear SLD.
-                        np.array(1d) - Shape = (Nlayers, len(z)) 
-        sum_sldm_list : coherent magnetic SLD.
-                        np.array(1d) - Shape = (Nlayers, len(z)) 
+        tot_sld : np.ndarray
+            coherent SLDs (nuclear or nuclear +/- magnetic SLD)
+            Shape = (Nlayers, len(z))
+        sum_isldn_list : np.ndarray
+            imaginary SLDs 
+            Shape = (Nlayers, len(z))
+        sum_sldn_list : np.ndarray 
+            coherent nuclear SLD.
+            Shape = (Nlayers, len(z)) 
+        sum_sldm_list : np.ndarray
+            coherent magnetic SLD.
+            Shape = (Nlayers, len(z)) 
         """
         # if SLD_constraint is not None, update self.nucSLDs depending on constraint.
         if self.SLD_constraint is not None:
@@ -191,7 +211,7 @@ class BaseVFP:
         
         return tot_sld, sum_isldn_list, sum_sldn_list, sum_sldm_list
     
-    def vfs_for_display(self):
+    def vfs_for_display(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Function useful for plotting: 
         1. Reduced VF profile (defines nuclear SLD profile)
@@ -200,13 +220,16 @@ class BaseVFP:
         
         Notes
         -----
-        To plot the the Magnetic "deadness", use the  z_and_SLD_scatter(reduced=False) VFP method.
+        To plot the the Magnetic "deadness", use the z_and_SLD_scatter(reduced=False) VFP method.
 
         Returns
         -------
-        reduced_VFP : np.array (2d) - Shape = (Nlayers, len(z) - len(self.indices))
-        reduced_magcomp : np.array (2d) - Shape = (Nlayers, len(z) - len(self.indices))
-        demag_arr : np.array (2d) - Shape = (Nlayers, len(z))
+        reduced_VFP : np.array 
+            Shape = (Nlayers, len(z) - len(self.indices))
+        reduced_magcomp : np.array 
+            Shape = (Nlayers, len(z) - len(self.indices))
+        demag_arr : np.array 
+            Shape = (Nlayers, len(z))
         """
 
         # update the model. Captures instances where parameters have changed.
@@ -226,7 +249,9 @@ class BaseVFP:
 
         return reduced_VFP, reduced_magcomp, demag_arr
     
-    def z_and_SLD_scatter(self, imag=False, reduced=True):
+    def z_and_SLD_scatter(self, 
+                          imag: bool = False, 
+                          reduced: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Function used for plotting SLDs from VFP.
         Returns z values from self.calc_zeds() and also returns
@@ -235,21 +260,16 @@ class BaseVFP:
         Parameters
         ----------
         imag : Boolean
-                If False/True, will return coherent/imaginary SLDs.
+            If False/True, will return coherent/imaginary SLDs.
         reduced : Boolean
-                    If False/True, will return full/reduced zs and SLDs.
-
-        Notes
-        -----
-        The VFP SLDs here do not match the SLDs used in the refnx structure to 
-        which this VFP belongs. This is because the SLDs in the refnx structure 
-        are the average of the VFP SLDs that are returned here. The averaging is
-        done in the __call__ method and is fed through to the slabs method.
+            If False/True, will return full/reduced zs and SLDs.
         
         Returns
         -------
-        x : z (1d) - either reduced or full.
-        y : SLDs (1d) - either reduced or full.
+        x : np.ndarray 
+            Distance from fronting interface - either reduced or full.
+        y : np.ndarray
+            SLDs (1d) - either reduced or full.
         """
         # update the model. Captures instances where parameters have changed.
         self.process_model()
@@ -258,65 +278,65 @@ class BaseVFP:
 
         if self.orientation in ('front'):
             if reduced is True:
-                SLDs = self.calc_slds()
+                slds = self.calc_slds()
                 if imag is False:
-                    y = SLDs[0]
-                    sep_n = SLDs[2]
-                    sep_m = SLDs[3]
+                    y = slds[0]
+                    sep_n = slds[2]
+                    sep_m = slds[3]
                     x = np.delete(zeds, self.indices)
 
                 else:
-                    y = SLDs[1]
-                    sep_n = SLDs[2]
-                    sep_m = SLDs[3]
+                    y = slds[1]
+                    sep_n = slds[2]
+                    sep_m = slds[3]
                     x = np.delete(zeds, self.indices)
 
             else:
-                SLDs = self.calc_slds(reduced=False)
+                slds = self.calc_slds(reduced=False)
                 if imag is False:
-                    y = SLDs[0]
-                    sep_n = SLDs[2]
-                    sep_m = SLDs[3]
+                    y = slds[0]
+                    sep_n = slds[2]
+                    sep_m = slds[3]
                     x = zeds
 
                 else:
-                    y = SLDs[1]
-                    sep_n = SLDs[2]
-                    sep_m = SLDs[3]
+                    y = slds[1]
+                    sep_n = slds[2]
+                    sep_m = slds[3]
                     x = zeds
 
         if self.orientation in ('back'):
             offset = np.sum(self.thicks)
             if reduced is True:
-                SLDs = self.calc_slds()
+                slds = self.calc_slds()
                 if imag is False:
-                    y = SLDs[0]
-                    sep_n = SLDs[2]
-                    sep_m = SLDs[3]
+                    y = slds[0]
+                    sep_n = slds[2]
+                    sep_m = slds[3]
                     x = -(np.delete(zeds, self.indices) - offset)
                     
                 else:
-                    y = SLDs[1]
-                    sep_n = SLDs[2]
-                    sep_m = SLDs[3]
+                    y = slds[1]
+                    sep_n = slds[2]
+                    sep_m = slds[3]
                     x = -(np.delete(zeds, self.indices) - offset)
 
             else:
-                SLDs = self.calc_slds(reduced=False)
+                slds = self.calc_slds(reduced=False)
                 if imag is False:
-                    y = SLDs[0]
-                    sep_n = SLDs[2]
-                    sep_m = SLDs[3]
+                    y = slds[0]
+                    sep_n = slds[2]
+                    sep_m = slds[3]
                     x = -(zeds - offset)
                 
                 else:
-                    y = SLDs[1]
-                    sep_n = SLDs[2]
-                    sep_m = SLDs[3]
+                    y = slds[1]
+                    sep_n = slds[2]
+                    sep_m = slds[3]
                     x = -(zeds - offset)
         return x, y, sep_n, sep_m
     
-    def SLD_offset(self):
+    def SLD_offset(self) -> float:
         """
         Returns an offset that can be applied to the z values of a sld_profile 
         of a refnx structure so that the sld_profile will align with the VFPs.
@@ -347,7 +367,11 @@ class BaseVFP:
         
         return sldprof_offset
 
-    def plot(self, points=50, microslice_SLD=True, total_SLD=False, total_VF=True):
+    def plot(self, 
+             points: int = 50, 
+             microslice_SLD: bool = True, 
+             total_SLD: bool = False, 
+             total_VF: bool = True) -> tuple[matplotlib.figure.Figure, np.ndarray[matplotlib.axes._axes.Axes]]:
         """
         Produces a three axis figure on the same x axis.
         Top plot = nSLD / mSLD / iSLD
@@ -383,16 +407,24 @@ class BaseVFP:
 
         return fig, ax
     
-    def _tuple_pars(self):
+    def _tuple_pars(self) -> None:
+        """
+        Converts attributes to tuples for the purposes of hashing.
+        """
         self.thicks = tuple((float(i) for i in self.thicknesses))
         self.roughs = tuple((float(i) for i in self.roughnesses))
         self.demag_locs = tuple((float(i) for i in self.demaglocs))
         self.demag_widths = tuple((float(i) for i in self.demagwidths))
         self.mSLDs = tuple((float(i) for i in self.magSLDs))
     
-    def _arrtotuple(self, arr):
+    def _arrtotuple(self, arr: np.ndarray) -> tuple:
         """
         Takes 1D/2D arrays and returns a tuple/nested tuple for the purposes of caching.
+        
+        Parameters
+        ----------
+        arr : np.ndarray
+              Array to convert to tuples.
         """
         if arr.ndim == 1:
             return tuple(i for i in arr)
@@ -400,7 +432,9 @@ class BaseVFP:
         elif arr.ndim == 2:
             return tuple([tuple([float(i) for i in row]) for row in arr])
         
-    def _createparam(self, param, nameid):
+    def _createparam(self, 
+                     param: tuple[float, Parameter | bumpsParameter] | list[float, Parameter | bumpsParameter] | np.ndarray, 
+                     nameid: str) -> list[Parameter] | list[bumpsParameter]:
         output = []
         if self.name in ('refnx VFP'):
             if nameid in ("magSLD", "niSLD"):

@@ -1,18 +1,22 @@
 [tool.poetry]
 name = "vfp"
 version = "0.2.0"
-description = "Calculate neutron and x-ray reflectivity profiles via generation of volume fraction profiles."
-authors = ["Alexander Armstrong"]
+description = "Calculate neutron and x-ray reflectivity profiles via physical volume fraction profiles."
+authors = ["Alexander Armstrong <sandyjoarmstrong@hotmail.com>"]
 license = "BSD 3-Clause"
 readme = "README.md"
+packages = [{include = "vfp", from="src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.9"
-matplotlib = ">=3.7.1"
-numpy = ">=1.23.5"
-scipy = ">=1.10.1"
-refnx = ">=0.1.42"
-methodtools = ">=0.4.7"
+python = ">=3.11"
+matplotlib = ">=3.10.0"
+numpy = ">=2.2"
+scipy = ">=1.14"
+refnx = ">=0.1.51"
+
+[tool.poetry.group.refl1d.dependencies]
+optional = true
+refl1d = ">=0.8.16"
 
 [tool.poetry.dev-dependencies]
 

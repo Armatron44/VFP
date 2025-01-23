@@ -1,23 +1,34 @@
+# standard
+from typing import TYPE_CHECKING
+
+# third party
 import numpy as np
 from refnx.reflect.interface import Step
 from scipy import stats
 import matplotlib.pyplot as plt
-from matplotlib import colormaps
+import matplotlib
 
-def surfaces_for_display(VFP, points=50):
+if TYPE_CHECKING:
+    from vfp.basevfp import BaseVFP
+
+def surfaces_for_display(VFP: 'BaseVFP', 
+                         points: int = 50) -> np.ndarray:
     """
-    Produces a 2D array of random variates from each interface.
-    The number of random variates is controlled by points.
-    Used to create a representation of the modelled interfaces.
+    Produces a 2D array of random variates, drawn from the distributions which describe each interface.
+    The number of random variates is controlled by the points parameter.
+    Used to create a graphical representation of the modelled interfaces.
 
     Parameters
     ----------
+    VFP : BaseVFP
+        The VFP object which describes the interface.
     points : integer
-                Number of points to simulate across the surfaces.
+        Number of points to simulate across the surfaces.
 
     Returns
     -------
-    interf_list : np.array (2d) - Shape = (Nlayers - 1, points)
+    np.array:
+        2d array of shape = (Nlayers - 1, points)
     """
 
     thicks = VFP.thicks
@@ -53,7 +64,11 @@ def surfaces_for_display(VFP, points=50):
 
     return interf_arr
 
-def model_plot(VFP, points=50, microslice_SLD=True, total_SLD=False, total_VF=True):
+def model_plot(VFP: 'BaseVFP',
+               points: int = 50, 
+               microslice_SLD: bool = True, 
+               total_SLD: bool = False, 
+               total_VF: bool = True) -> tuple[matplotlib.figure.Figure, np.ndarray[plt.Axes]]:
     """
     Produces a three axis figure on the same x axis.
     Top plot = nSLD / mSLD / iSLD
@@ -62,20 +77,23 @@ def model_plot(VFP, points=50, microslice_SLD=True, total_SLD=False, total_VF=Tr
 
     Parameters
     ----------
+    vfp : BaseVFP
+        The VFP object which describes the interface.
     points : integer
-                Number of points to simulate across the surfaces.
+        Number of points to simulate across the surfaces.
     microslice_SLD : boolean
-                        If True, will return SLD profiles equivalent to those generated 
-                        with refnx's structure.sld_profile() method
+        If True, will return SLD profiles equivalent to those generated 
+        with refnx's structure.sld_profile() method
     total_SLD : boolean
-                If True, will return SLD+ or SLD- profiles. If false, the SLDn and SLDm parts
-                will be plotted seperately.
+        If True, will return SLD+ or SLD- profiles. If false, the SLDn and SLDm parts
+        will be plotted seperately.
     total_VF : boolean
-                If True, will plot the sum of all layers' volume fractions.
+        If True, will plot the sum of all layers' volume fractions.
 
     Returns
     -------
-    fig, ax : matplotlib.pyplot figure and axes objects. 
+    tuple[matplotlib.figure.Figure, np.ndarray[plt.Axes]]:
+        matplotlib.pyplot figure and axes objects. 
     """
 
     if points <= 0:
@@ -85,7 +103,7 @@ def model_plot(VFP, points=50, microslice_SLD=True, total_SLD=False, total_VF=Tr
     surfaces = surfaces_for_display(VFP, points=points)
     
     # define some colours to use for the surface plot.
-    colours = colormaps['tab20'].colors
+    colours = matplotlib.colormaps['tab20'].colors
 
     fig, ax = plt.subplots(3, 1, sharex=True, figsize=(8, 9))
 
@@ -243,9 +261,22 @@ def model_plot(VFP, points=50, microslice_SLD=True, total_SLD=False, total_VF=Tr
 
     return fig, ax
 
-def _gen_sld_profile(VFP):
+def _gen_sld_profile(VFP: 'BaseVFP') -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Calculate sld profiles (nuclear, magnetic and imaginary) from the VFP.
 
-    # use the __call__ method of the VFP class to
+    Parameters
+    ----------
+    VFP : BaseVFP
+        VFP object which contains the description of the interface.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        Contains the z distance (first index in tuple) over the interface and the 
+        SLDs in the following order: zed, nsld, msld, isld
+    """
+    # use the process_model method of the supplied VFP to
     # return islds and thicknesses of each slab
     _, islds, thicks = VFP.process_model()
 

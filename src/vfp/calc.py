@@ -1,19 +1,27 @@
-import numpy as np
-import scipy
+# standard
 from functools import lru_cache
 import itertools
 
-def consecutive(arr, stepsize=1):
+# third party
+import numpy as np
+import scipy
+
+def consecutive(arr: np.ndarray, 
+                stepsize: int = 1) -> list[np.ndarray]:
     """
-    Splits an array into sub arrays where the difference between neighbouring units is not 1.
+    Splits an array into a list of sub arrays where the difference between neighbouring units is not 1.
     """
-    return np.split(arr, np.where(np.diff(arr) != stepsize)[0] + 1)
+    #return np.split(arr, np.where(np.diff(arr) != stepsize)[0] + 1)
+    return np.split(arr, (np.diff(arr) != stepsize).nonzero()[0] + 1)
 
 @lru_cache(maxsize=6)
-def calc_dzs(zstart, zend, points, idxs):
+def calc_dzs(zstart: float, 
+             zend: float, 
+             points: int, 
+             idxs: tuple) -> np.ndarray:
     """
     Calculates the thickness (z) of each microslice after reducing the VFP in self.init_demag().
-    Cached class method so this calculation is not repeated for VFPs with the same input values.
+    Cached function to avoid repeated calculation for VFPs with the same input values.
 
     The thickness of each microslice is approximately the value of self.max_delta_z prior to
     reduction.
@@ -21,20 +29,21 @@ def calc_dzs(zstart, zend, points, idxs):
     Parameters
     ----------
     zstart : float
-                z value of where VFP starts.
+        z value of where VFP starts.
     zend : float
-            z value of where VFP ends.
+        z value of where VFP ends.
     points : integer
-                number of points in the VFP. Points = int((zend - zstart) / self.max_delta_z)
-                defined in self.calc_zeds()
+        number of points in the VFP. Points = int((zend - zstart) / self.max_delta_z)
+        defined in self.calc_zeds()
     idxs : tuple
-            indices of nodes in the VFP that are approximately equal to a neighbouring node 
-            as defined in self.init_demag(). These indices are used to calculate the thickness
-            of each microslice across an uneven z space after reduction.
+        indices of nodes in the VFP that are approximately equal to a neighbouring node 
+        as defined in self.init_demag(). These indices are used to calculate the thickness
+        of each microslice across an uneven z space after reduction.
     
     Returns
     -------
-    dzs : np.array of microslice thicknesses (1d).
+    dzs : np.array 
+        microslice thicknesses (1d).
     """
     
     idxs = np.array(idxs)
@@ -70,28 +79,33 @@ def calc_dzs(zstart, zend, points, idxs):
     return dzs
     
 @lru_cache(maxsize=6)
-def calc_zeds(rough, thick, mxdz):
+def calc_zeds(rough: tuple, 
+              thick: tuple, 
+              mxdz: float) -> tuple[float, float, int, np.ndarray]:
     """
+    Given tuples of thicknesses and roughnesses this will return the z values over 
+    which the full interface is described. 
     Returns array of z values for VFP calculated using roughnesses & thicknesses.
-    
-    Cached class method so that VFPs that share same the arguments aren't required
-    to re-calculate (e.g multiple contrasts).
     
     Parameters
     ----------
     rough : tuple of roughness values
-            used in calculation of zstart and zend.
+        used in calculation of zstart and zend.
     thick : tuple of thickness values
-            used in calculation of zend.
+        used in calculation of zend.
     mxdz :  float - self.max_delta_z as defined in the init fuction.
-            used to calculate the number of points in returned z array.
+        used to calculate the number of points in returned z array.
     
     Returns
     -------
-    zstart : float - start z value of VFP.
-    zend : float - end z value of VFP.
-    points : integer - number of points in zeds.
-    zeds : np.array (1d) of length points.
+    zstart : float
+        start z value of VFP.
+    zend : float
+        end z value of VFP.
+    points : integer
+        number of points in zeds.
+    zeds : np.array 
+        distance points.
     """
     # convert rough & thick tuples to arrays.
     rough = np.array(rough)
@@ -117,24 +131,24 @@ def calc_zeds(rough, thick, mxdz):
     
     return zstart, zend, points, zeds
 
-def one_minus_cdf(x, cumthick, rough): 
+def one_minus_cdf(x: np.ndarray, 
+                  cumthick: np.ndarray, 
+                  rough: np.ndarray) -> np.ndarray: 
     """
     Returns 1-CDF for a given set of thickness and roughness that describe an interface.
     
     Parameters
     ----------
-    interf_choice : integer
-                    selects which interf to calculate the CDF for
     x : np.array
         z values over which VFP will be calculated.
     cumthick : np.array
-                cumulative thicknesses of the layers.
+        cumulative thicknesses of the layers.
     rough : np.array
-            list of roughnesses of the layers.
+        roughnesses of the model layers.
     
     Returns
     -------
-    one_minus_cdf : np.array (1d)
+    one_minus_cdf : np.array
     """
     # TODO: add other distribution types to this function?
     # exponential, uniform (straight line CDF), ...
@@ -142,28 +156,29 @@ def one_minus_cdf(x, cumthick, rough):
     return one_minus_cdf
 
 @lru_cache(maxsize=6)
-def calc_vfp(rough, thick, zeds, conformal):
+def calc_vfp(rough: tuple, 
+             thick: tuple, 
+             zeds: tuple, 
+             conformal: tuple) -> np.ndarray:
     """
     Returns volume fraction profile for each layer.
-    This method is a cached class method so that the VFP
-    does not have to be recalculated for contrasts with
-    the same sample structure.
     
     Parameters
     ----------
     thick : tuple
-            tuple of thicknesses values of the layers.
+        thicknesses values of the layers.
     rough : tuple
-            tuple of roughnesses values of the layers.
+        roughnesses values of the layers.
     zeds : tuple
-            tuple of z values across VFP. 
+        z values across VFP. 
     conformal : tuple
-                tuple of 0 and 1s. 
-                1 indicates conformal interface to everything before, 0 indicates non-conformal interface.
+        sequence of 0 and 1s. 
+        1 indicates conformal interface to everything before, 0 indicates non-conformal interface.
     
     Returns
     -------
-    vfp : np.array (2d) - Shape = (Nlayers, len(z))
+    vfp : np.array 
+        (2d) - Shape = (Nlayers, len(z))
     """
     rough = np.array(rough)
     thick = np.array(thick)
@@ -182,8 +197,8 @@ def calc_vfp(rough, thick, zeds, conformal):
         part_count.append(sum(1 for _ in g))
 
     # init vfp array to fill.
-    vfp = np.zeros((num_layers, len(z)))
-    prior_surface = np.ones((num_layers, len(z))) # will be used to keep track of preceeding layers' vfps.
+    vfp = np.zeros((num_layers, len(z)), dtype=float)
+    prior_surface = np.ones((num_layers, len(z)), dtype=float) # will be used to keep track of preceeding layers' vfps.
 
     counter = 0
     for ii, set in enumerate(check_conform):
@@ -194,9 +209,10 @@ def calc_vfp(rough, thick, zeds, conformal):
                 prior_nonconform = np.ones((part_count[ii - 1], len(z)))
                 for prior_part in range(part_count[ii - 1]):
                     prior_nonconform[prior_part] = 1 - one_minus_cdf(z, 
-                                                                     cumthick[counter - prior_part - 1 - part] + 
-                                                                     cumthick[counter] - cumthick[counter - part - 1],
-                                                                     rough[counter - prior_part - 1 - part])
+                                                        cumthick[counter - prior_part - 1 - part] + 
+                                                        cumthick[counter] - cumthick[counter - part - 1],
+                                                        rough[counter - prior_part - 1 - part]
+                                                        )
                 full_int = np.cumprod(prior_nonconform, axis=0)
                 vf_sum = np.cumsum(vfp, axis=0) 
                 # vfp of conformal materials is calculated as 1 - cumprod(nonconform_CDF_shifted) - sum of vfps of all previous layers.  
@@ -215,16 +231,20 @@ def calc_vfp(rough, thick, zeds, conformal):
                 # it takes the value of current CDF multiplied by the cumulative product of all CDFs before.
                 prior_surface[counter + 1, :] = (1 - end_interf) * prior_surface[counter]
                 counter += 1
-    
+
     # calculate the backing material vfp.
     vf_sum = np.cumsum(vfp, axis=0)
     vfp[counter, :] = 1 - vf_sum[-1] # the backing material is simply 1-everything else.
     return vfp
 
 @lru_cache(maxsize=6)
-def init_demag(locs, widths, mSLDs, zeds, vfp):
+def init_demag(locs: tuple, 
+               widths: tuple, 
+               mSLDs: tuple, 
+               zeds: tuple, 
+               vfp: tuple) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Calculates the product of the VFP and the magnetic 'deadness' --> mag_comp. 
+    Calculates the product of the VFP and the magnetic 'deadness' (mag_comp). 
     This is used for calculating the magnetic SLDs of the layers.
     mag_comp and the original VFP are then reduced by finding the regions of
     mag_comp that do not vary by < 1e-5.
@@ -237,27 +257,28 @@ def init_demag(locs, widths, mSLDs, zeds, vfp):
     Parameters
     ----------
     locs : tuple
-            tuple of scale values to describe demagnetisation peak(s).
+        values to describe demagnetisation peak(s) locations.
     widths : tuple
-                tuple of scale values to describe demagnetisation peak(s).
+        values to describe demagnetisation peaks(s) widths.
     mSLDs : tuple
-            tuple of magnetic SLD values of the layers.
+        tuple of magnetic SLD values of the layers.
     zeds : tuple
-            tuple of z values across VFP.         
+        tuple of z values across VFP.         
     vfp : tuple
-            Nested tuple (2d) containing VFP of each layer.
+        Nested tuple (2d) containing VFP of each layer.
     
     Returns
     -------
-    reduced_vfp : np.array (2d) - Shape = (Nlayers, len(z) - len(idxs))
-                    Reduced VFPs.
-    reduced_magcomp : np.array (2d) - Shape = (Nlayers, len(z) - len(idxs))
-                        Reduced mag_comp.
-    idxs : np.array (1d)
-                Indices of where to remove points from vfp and mag_comp.
-    demag_arr : np.array (2d) - Shape = (Nlayers, len(z))
-                Magnetic deadlayer peak before multiplication with VFP.
-                Not reduced.
+    reduced_vfp : np.array 
+        Reduced VFPs. (2d) - Shape = (Nlayers, len(z) - len(idxs))
+    reduced_magcomp : np.array 
+        Reduced mag_comp. (2d) - Shape = (Nlayers, len(z) - len(idxs))
+    idxs : np.array
+        Indices of where to remove points from vfp and mag_comp.
+    demag_arr : np.array
+        Shape = (Nlayers, len(z))
+        Magnetic deadlayer peak before multiplication with VFP.
+        Not reduced.
     """
     locs = np.array(locs)
     widths = np.array(widths)
@@ -279,7 +300,6 @@ def init_demag(locs, widths, mSLDs, zeds, vfp):
     
     # calculate magnetic composition of each layer over the interface using VFPs.
     mag_comp = vfp * demag_arr 
-
     # find the regions of the interface where the VFPs are approximately invariant.
     difference_arr = np.abs(np.diff(mag_comp, axis=1)) < 1e-5
     reduce_diff_arr = np.all(difference_arr, axis=0)
@@ -293,7 +313,9 @@ def init_demag(locs, widths, mSLDs, zeds, vfp):
     reduced_magcomp = np.delete(mag_comp, idxs, 1)
     return reduced_vfp, reduced_magcomp, idxs, demag_arr
 
-def get_demag(dist, locs, widths):
+def get_demag(dist: np.ndarray,
+              locs: np.ndarray, 
+              widths: np.ndarray) -> np.ndarray:
     """
     Calculates the magnetic deadness across the interface given a set of 
     locs and widths parameters. The magnetic deadness can be described by
@@ -312,20 +334,20 @@ def get_demag(dist, locs, widths):
     Parameters
     ----------
     dist : np.array (1d)
-            z values of VFP.
+        z values of VFP.
     locs : np.array (1d)
-            values of locs parameters.
+        values of locs parameters.
     widths : np.array (1d)
-                values of widths parameters.
+        values of widths parameters.
 
     Returns
     -------
     np.ones_like(dist) : np.array(1d)
-                            returned if no location or width values.
+        returned if no location or width values.
     1-peak : np.array(1d)
-                returned if only two locs and two width values passed to function.
+        returned if only two locs and two width values passed to function.
     demag_f : np.array (1d)
-                returned if all 4 locs and width values passed to function.
+        returned if all 4 locs and width values passed to function.
     """
     # if locs does not contain any non-zero values, then just return an array of ones.
     if not locs.any():
@@ -349,30 +371,91 @@ def get_demag(dist, locs, widths):
         peak_2 = scipy.stats.norm.cdf(dist, loc=cumlocs[1], scale=widths[1]) * scipy.stats.norm.cdf(dist, loc=cumlocs[2], scale=widths[2]) * (1-scipy.stats.norm.cdf(dist, loc=cumlocs[3], scale=widths[3]))
         demag_f = 1 - (peak_1 + peak_2) # can have two dead layers.
         return demag_f
+
+# @lru_cache(maxsize=6)
+# def inte_vfp(zeds: tuple, 
+#              indexs: tuple, 
+#              red_vfps: tuple, 
+#              layers: list[int]) -> tuple[float, float]:
+#     # TODO: work out if fixed sample integration can fail.
+#     # TODO: figure out more flexible approach to the constraints.
+#     # TODO: does this need to be calculated on reduced vfp or full vfp?
+#     # TODO: refactor to calculate the integral over a general number of layers.
+#     """
+#     Calculates the integral over a specific layer.
+    
+#     Parameters
+#     ----------
+#     zeds : tuple
+#         tuple of z values across VFP.
+#     idxs : tuple
+#         indices of nodes in the VFP that are approximately equal to a neighbouring node 
+#         as defined in self.init_demag(). These indices are used to calculate the thickness
+#         of each microslice across an uneven z space after reduction.
+#     red_vfps : tuple
+#         Nested tuple (2d) containing VFP of each layer.
+#     first_layer : integer
+#         idx used to indicate which 
+#     second_layer : integer
+#         idx used to point to which other layer to integrate
+        
+#     returns:
+#     --------
+#     first_lay_int : float
+#         integrand of the first layer.
+#     second_lay_int : float
+#         integrand of the second layer.
+#     """
+#     zs = np.array(zeds)
+#     idxs = np.array(indexs)
+#     red_vfp = np.array(red_vfps)
+
+#     integrate_over = np.delete(zs, idxs) # get zed values to integrate over.
+
+#     first_lay_int = scipy.integrate.simpson(red_vfp[first_layer], x=integrate_over)
+#     secon_lay_int = scipy.integrate.simpson(red_vfp[second_layer], x=integrate_over)
+
+#     return first_lay_int, secon_lay_int
     
 @lru_cache(maxsize=6)
-def integrate_vfp(zeds, indexs, red_vfps, first_layer, second_layer):
+def integrate_vfp(zeds: tuple, 
+                  indexs: tuple, 
+                  red_vfps: tuple, 
+                  first_layer: int, 
+                  second_layer: int) -> tuple[float, float]:
     """
+    Calculates the integral over a specific layer.
+    
     Parameters
     ----------
     zeds : tuple
-            tuple of z values across VFP.
+        tuple of z values across VFP.
     idxs : tuple
-            indices of nodes in the VFP that are approximately equal to a neighbouring node 
-            as defined in self.init_demag(). These indices are used to calculate the thickness
-            of each microslice across an uneven z space after reduction.
+        indices of nodes in the VFP that are approximately equal to a neighbouring node 
+        as defined in self.init_demag(). These indices are used to calculate the thickness
+        of each microslice across an uneven z space after reduction.
     red_vfps : tuple
-                Nested tuple (2d) containing VFP of each layer.
+        Nested tuple (2d) containing VFP of each layer.
     first_layer : integer
-                    idx used to indicate which 
+        idx used to indicate which 
     second_layer : integer
-                    idx used to point to which other layer to integrate
+        idx used to point to which other layer to integrate
+        
+    returns:
+    --------
+    first_lay_int : float
+        integrand of the first layer.
+    second_lay_int : float
+        integrand of the second layer.
     """
     zs = np.array(zeds)
     idxs = np.array(indexs)
     red_vfp = np.array(red_vfps)
 
-    integrate_over = np.delete(zs, idxs) # get zed values to integrate over.
+    if idxs:
+        integrate_over = np.delete(zs, idxs) # get zed values to integrate over.
+    else:
+        integrate_over = zs
 
     first_lay_int = scipy.integrate.simpson(red_vfp[first_layer], x=integrate_over)
     secon_lay_int = scipy.integrate.simpson(red_vfp[second_layer], x=integrate_over)
