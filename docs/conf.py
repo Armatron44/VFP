@@ -6,9 +6,9 @@
 
 # -- Project information -----------------------------------------------------
 
-project = u"vfp"
-copyright = u"2024, Alexander Armstrong"
-author = u"Alexander Armstrong"
+project = "vfp"
+copyright = "2024, Alexander Armstrong"
+author = "Alexander Armstrong"
 
 # -- General configuration ---------------------------------------------------
 
