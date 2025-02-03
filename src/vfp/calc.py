@@ -427,16 +427,78 @@ def get_demag(
         demag_f = 1 - (peak_1 + peak_2)  # can have two dead layers.
         return demag_f
 
+# @lru_cache(maxsize=6)
+# def inte_vfp(layers: list[int]) -> tuple[float, float]:
+    
+#     scipy.integrate.quad(func
+#                          zstart
+#                          zend)
+
+#     integrate_over = np.delete(zs, idxs) # get zed values to integrate over.
+
+#     return first_lay_int, secon_lay_int
+
+@lru_cache(maxsize=6)
+def integrate_vfp(
+    zeds: tuple,
+    indexs: tuple,
+    red_vfps: tuple,
+    layer_indices: tuple[int]
+) -> list[float]:
+    """
+    Calculates the integrals over specific layers specified 
+    by indices in layer_indices.
+    
+    Integration is calculated via simpson's rule.
+
+    Parameters
+    ----------
+    zeds : tuple
+        tuple of z values across VFP.
+    idxs : tuple
+        indices of nodes in the VFP that are approximately equal to a neighbouring node
+        as defined in self.init_demag(). These indices are used to calculate the
+        thickness of each microslice across an uneven z space after reduction.
+    red_vfps : tuple
+        Nested tuple (2d) containing VFP of each layer.
+    layer_indices : tuple
+        Indices of layers of which to calculate the integral.
+
+    returns:
+    --------
+    integrals : float
+        The integrals of the layers.
+    """
+    if not layer_indices:
+        raise ValueError(f'layer_indices must be defined.')
+    
+    zs = np.array(zeds)
+    idxs = np.array(indexs)
+    red_vfp = np.array(red_vfps)
+    layer_indices = list(layer_indices)
+
+    if idxs.size > 0:
+        integrate_over = np.delete(
+            zs, idxs
+        )  # get zed values to integrate over.
+    else:
+        integrate_over = zs
+        
+    integrals = []
+    for lidx in layer_indices:
+        layer_integral = scipy.integrate.simpson(red_vfp[lidx], x=integrate_over)
+        integrals.append(layer_integral)    
+
+    return integrals
 
 # @lru_cache(maxsize=6)
-# def inte_vfp(zeds: tuple,
-#              indexs: tuple,
-#              red_vfps: tuple,
-#              layers: list[int]) -> tuple[float, float]:
-#     # TODO: work out if fixed sample integration can fail.
-#     # TODO: figure out more flexible approach to the constraints.
-#     # TODO: does this need to be calculated on reduced vfp or full vfp?
-#     # TODO: refactor to calculate the integral over a general number of layers.
+# def integrate_vfp(
+#     zeds: tuple,
+#     indexs: tuple,
+#     red_vfps: tuple,
+#     first_layer: int,
+#     second_layer: int,
+# ) -> tuple[float, float]:
 #     """
 #     Calculates the integral over a specific layer.
 
@@ -446,8 +508,8 @@ def get_demag(
 #         tuple of z values across VFP.
 #     idxs : tuple
 #         indices of nodes in the VFP that are approximately equal to a neighbouring node
-#         as defined in self.init_demag(). These indices are used to calculate the thickness
-#         of each microslice across an uneven z space after reduction.
+#         as defined in self.init_demag(). These indices are used to calculate the
+#         thickness of each microslice across an uneven z space after reduction.
 #     red_vfps : tuple
 #         Nested tuple (2d) containing VFP of each layer.
 #     first_layer : integer
@@ -466,63 +528,18 @@ def get_demag(
 #     idxs = np.array(indexs)
 #     red_vfp = np.array(red_vfps)
 
-#     integrate_over = np.delete(zs, idxs) # get zed values to integrate over.
+#     if idxs:
+#         integrate_over = np.delete(
+#             zs, idxs
+#         )  # get zed values to integrate over.
+#     else:
+#         integrate_over = zs
 
-#     first_lay_int = scipy.integrate.simpson(red_vfp[first_layer], x=integrate_over)
-#     secon_lay_int = scipy.integrate.simpson(red_vfp[second_layer], x=integrate_over)
+#     first_lay_int = scipy.integrate.simpson(
+#         red_vfp[first_layer], x=integrate_over
+#     )
+#     secon_lay_int = scipy.integrate.simpson(
+#         red_vfp[second_layer], x=integrate_over
+#     )
 
 #     return first_lay_int, secon_lay_int
-
-
-@lru_cache(maxsize=6)
-def integrate_vfp(
-    zeds: tuple,
-    indexs: tuple,
-    red_vfps: tuple,
-    first_layer: int,
-    second_layer: int,
-) -> tuple[float, float]:
-    """
-    Calculates the integral over a specific layer.
-
-    Parameters
-    ----------
-    zeds : tuple
-        tuple of z values across VFP.
-    idxs : tuple
-        indices of nodes in the VFP that are approximately equal to a neighbouring node
-        as defined in self.init_demag(). These indices are used to calculate the
-        thickness of each microslice across an uneven z space after reduction.
-    red_vfps : tuple
-        Nested tuple (2d) containing VFP of each layer.
-    first_layer : integer
-        idx used to indicate which
-    second_layer : integer
-        idx used to point to which other layer to integrate
-
-    returns:
-    --------
-    first_lay_int : float
-        integrand of the first layer.
-    second_lay_int : float
-        integrand of the second layer.
-    """
-    zs = np.array(zeds)
-    idxs = np.array(indexs)
-    red_vfp = np.array(red_vfps)
-
-    if idxs:
-        integrate_over = np.delete(
-            zs, idxs
-        )  # get zed values to integrate over.
-    else:
-        integrate_over = zs
-
-    first_lay_int = scipy.integrate.simpson(
-        red_vfp[first_layer], x=integrate_over
-    )
-    secon_lay_int = scipy.integrate.simpson(
-        red_vfp[second_layer], x=integrate_over
-    )
-
-    return first_lay_int, secon_lay_int

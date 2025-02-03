@@ -15,11 +15,11 @@ try:
 
     REFL1D_IMPORTED = True
 except ImportError as ie:
+    REFL1D_IMPORTED = False
     print(f"{ie} compatible refl1d & bumps packages not installed.")
 
 # this module
 from vfp.basevfp import BaseVFP
-
 
 class refnxVFP(Component, BaseVFP):
     """

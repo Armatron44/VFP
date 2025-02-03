@@ -179,19 +179,27 @@ class BaseVFP:
             Shape = (Nlayers, len(z))
         """
         # if SLD_constraint is not None, update self.nucSLDs depending on constraint.
-        if self.SLD_constraint is not None:
-            first_layer, second_layer = self.SLD_constraint.layer_choice()
-            int_vfp1, int_vfp2 = integrate_vfp(
+        if self.SLD_constraint:
+            layer_indices = self.SLD_constraint.layer_choices()
+            #first_layer, second_layer = self.SLD_constraint.layer_choice()
+            # int_vfp1, int_vfp2 = integrate_vfp(
+            #     self.zeds,
+            #     self.indices,
+            #     self._arrtotuple(self.red_vfp),
+            #     first_layer,
+            #     second_layer,
+            # )
+            integrals = integrate_vfp(
                 self.zeds,
                 self.indices,
                 self._arrtotuple(self.red_vfp),
-                first_layer,
-                second_layer,
+                tuple(layer_indices)
             )
             # user defines a class with a callable,
             # which returns an idx for modifying a particular SLD value.
-            layer_loc, SLD = self.SLD_constraint(int_vfp1, int_vfp2)
-            self.nucSLDs[layer_loc] = SLD
+            layer_loc, sld = self.SLD_constraint(integrals)
+            #layer_loc, sld = self.SLD_constraint(int_vfp1, int_vfp2)
+            self.nucSLDs[layer_loc] = sld
 
         if reduced:
             demagf = self.demagf
