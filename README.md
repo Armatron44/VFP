@@ -19,12 +19,16 @@ import vfp
 
 # fronting thickness = 0, layer 1 thickness = 20, layer 2 thickness = 30.
 thicknesses = (0, 20, 30)
+
 # interfacial width between 0 and 1 = 2, between 1 & 2 = 4, between 2 & backing = 6
 roughnesses = (2, 4, 6)
+
 # slds of fronting = Si, layer 1 = SiO2, layer 2 = GMO, backing = D2O
 slds = (2.07, 3.47, 0.21, 6.37)
+
 # create a refnxVFP object.
 vfp = vfp.refnxVFP(slds, lot, lor)
+
 # plot SLD, volume fraction proflie & stochastic model of interface.
 vfp.plot()
 plt.show()
@@ -41,10 +45,13 @@ import vfp
 
 # fronting thickness = 0, layer 1 thickness = 20, layer 2 thickness = 30.
 thicknesses = (0, 20, 30)
+
 # interfacial width between 0 and 1 = 2, between 1 & 2 = 4, between 2 & backing = 6
 roughnesses = (2, 4, 6)
+
 # slds of fronting = Si, layer 1 = SiO2, layer 2 = GMO, backing = D2O
 slds = (2.07, 3.47, 0.21, 6.37)
+
 # create a refnxVFP object.
 vfp = vfp.refnxVFP(slds, lot, lor)
 
