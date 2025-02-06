@@ -2,7 +2,8 @@
 name = "vfp"
 version = "0.2.0"
 description = "Calculate neutron and x-ray reflectivity profiles via physical volume fraction profiles."
-authors = ["Alexander Armstrong <sandyjoarmstrong@hotmail.com>"]
+authors = ["Alexander Armstrong <sandyjoarmstrong@hotmail.com>,
+            Rebecca Welbourn"]
 license = "BSD 3-Clause"
 readme = "README.md"
 packages = [{include = "vfp", from="src"}]
