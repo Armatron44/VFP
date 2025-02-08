@@ -10,20 +10,37 @@ $ pip install vfp
 
 ## Usage
 
-`vfp` can be used to generate interfacial models. 
-A simple model of an interface can be generated with the following:
+`vfp` can be used to generate interfacial models.
+Lets build a model with the following layers
+
+$\mathrm{Si}$ | $\mathrm{SiO_{2}}$ | $\mathrm{Surfactant}$ | $\mathrm{D_{2}O}$
+
+where $\mathrm{Si}$ and $\mathrm{D_{2}O}$ are the fronting and backing respectively.
+The characteristics of the layers are summarised in Table 1.
+|            | $\mathrm{Thickness}$ / $\mathrm{\AA}$ | $\mathrm{Roughness}$ / $\mathrm{\AA}$ | $\mathrm{SLD}$ / $\mathrm{\AA}^{-2} \times 10^{-6}$ |
+| ---------- | ---------------------------- | ---------------------------- | ------------------------------------------------------- |
+| Si         | $\infty$                    | 2                            | 2.07                                                    |
+| SiO2       | 20                           | 4                            | 3.47                                                    |
+| Surfactant | 30                           | 6                            | 0.21                                                    |
+| D2O        | $\infty$                    | \-                           | 6.37                                                    |
+
+We can build a simple model with the following:
 
 ```python
 import matplotlib.pyplot as plt
 import vfp
 
-# fronting thickness = 0, layer 1 thickness = 20, layer 2 thickness = 30.
+# fronting thickness = 0 (not $\infty$ here) 
+# layer 1 thickness = 20 
+# layer 2 thickness = 30.
 thicknesses = (0, 20, 30)
 
-# interfacial width between 0 and 1 = 2, between 1 & 2 = 4, between 2 & backing = 6
+# interfacial width between 0 and 1 = 2, 
+# between 1 & 2 = 4, 
+# between 2 & backing = 6
 roughnesses = (2, 4, 6)
 
-# slds of fronting = Si, layer 1 = SiO2, layer 2 = GMO, backing = D2O
+# slds of Si, SiO2, Surfactant, D2O
 slds = (2.07, 3.47, 0.21, 6.37)
 
 # create a refnxVFP object.
@@ -43,28 +60,28 @@ from refnx.dataset import ReflectDataset
 import matplotlib.pyplot as plt
 import vfp
 
-# fronting thickness = 0, layer 1 thickness = 20, layer 2 thickness = 30.
 thicknesses = (0, 20, 30)
-
-# interfacial width between 0 and 1 = 2, between 1 & 2 = 4, between 2 & backing = 6
 roughnesses = (2, 4, 6)
-
-# slds of fronting = Si, layer 1 = SiO2, layer 2 = GMO, backing = D2O
 slds = (2.07, 3.47, 0.21, 6.37)
 
-# create a refnxVFP object.
+# create a refnxVFP object for refnx
 vfp = vfp.refnxVFP(slds, lot, lor)
 
-# wrap the vfp object by the fronting and backing materials when defining the structure.
+# wrap the vfp object by the fronting and backing materials 
+# when defining the structure.
 struc = SLD(2.07, name='Si') | vfp | SLD(6.37, name='D2O')
 
-# now the structure can be used to build a ReflectModel as normal.
+# now the structure can be used to build a ReflectModel.
 model = ReflectModel(struc)
 
 # visualise refnx model via:
 plt.plot(*model.structure.sld_profile())
 plt.show()
+
+# create your refnx objective & fit / sample however you wish...
 ```
+
+More in-depth tutorials are found in the docs folder.
 
 ## Contributing
 

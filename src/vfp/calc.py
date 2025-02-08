@@ -16,7 +16,7 @@ def consecutive(arr: np.ndarray, stepsize: int = 1) -> list[np.ndarray]:
     return np.split(arr, (np.diff(arr) != stepsize).nonzero()[0] + 1)
 
 
-@lru_cache(maxsize=6)
+@lru_cache(maxsize=2)
 def calc_dzs(
     zstart: float, zend: float, points: int, idxs: tuple
 ) -> np.ndarray:
@@ -101,7 +101,7 @@ def calc_dzs(
     return dzs
 
 
-@lru_cache(maxsize=6)
+@lru_cache(maxsize=2)
 def calc_zeds(
     rough: tuple, thick: tuple, mxdz: float
 ) -> tuple[float, float, int, np.ndarray]:
@@ -181,7 +181,7 @@ def one_minus_cdf(
     return one_minus_cdf
 
 
-@lru_cache(maxsize=6)
+@lru_cache(maxsize=2)
 def calc_vfp(
     rough: tuple, thick: tuple, zeds: tuple, conformal: tuple
 ) -> np.ndarray:
@@ -279,7 +279,7 @@ def calc_vfp(
     return vfp
 
 
-@lru_cache(maxsize=6)
+@lru_cache(maxsize=2)
 def init_demag(
     locs: tuple, widths: tuple, mSLDs: tuple, zeds: tuple, vfp: tuple
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -438,7 +438,7 @@ def get_demag(
 
 #     return first_lay_int, secon_lay_int
 
-@lru_cache(maxsize=6)
+@lru_cache(maxsize=2)
 def integrate_vfp(
     zeds: tuple,
     indexs: tuple,

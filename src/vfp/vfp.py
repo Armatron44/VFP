@@ -357,7 +357,7 @@ class refnxVFP(Component, BaseVFP):
         if structure is None:
             raise TypeError("VFP.slabs() requires a valid Structure")
 
-        # use the main method of the VFP class to
+        # use the process method of the BaseVFP class to
         # return total slds, islds and thicknesses of each slab
         slds, islds, thicks = self.process_model()
 
@@ -762,7 +762,8 @@ if REFL1D_IMPORTED:
             return p
 
         def render(self, probe: NeutronProbe, slabs: Microslabs) -> None:
-            """Appends the microslice thickness, SLDs and iSLDs to the
+            """
+            Appends the microslice thickness, SLDs and iSLDs to the
             Microslabs object passed to the render function of the VFP
             by refl1d's Experiment object. Also updates the self.thickness
             value of the VFP.
@@ -775,7 +776,7 @@ if REFL1D_IMPORTED:
                 Object which has rho, irho, w and sigma properties.
             """
 
-            # use the __call__ method of the VFP class to
+            # use the process method of the BaseVFP class to
             # return total slds, islds and thicknesses of each slab
             slds, islds, thicks = self.process_model()
 
