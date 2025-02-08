@@ -68,9 +68,8 @@ class BaseVFP:
         self._tuple_pars()
 
         # calc z spectrum
-        self.zstart, self.zend, self.points, zeds = calc_zeds(
-            self.roughs, self.thicks, self.max_delta_z
-        )
+        zeds = calc_zeds(self.roughs, self.thicks, self.max_delta_z)
+        self.zstart, self.zend, self.points = zeds[0], zeds[-1], zeds.size
 
         # convert to tuple for caching.
         self.zeds = self._arrtotuple(zeds)

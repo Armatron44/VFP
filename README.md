@@ -11,18 +11,20 @@ $ pip install vfp
 ## Usage
 
 `vfp` can be used to generate interfacial models.
-Lets build a model with the following layers
+
+Lets build a model with the following layers:
 
 $\mathrm{Si}$ | $\mathrm{SiO_{2}}$ | $\mathrm{Surfactant}$ | $\mathrm{D_{2}O}$
 
 where $\mathrm{Si}$ and $\mathrm{D_{2}O}$ are the fronting and backing respectively.
+
 The characteristics of the layers are summarised in the following table.
-|            | $\mathrm{Thickness}$ / $\mathrm{\mathring A}$ | $\mathrm{Roughness}$ / $\mathrm{\mathring A}$ | $\mathrm{SLD}$ / $\mathrm{\mathring A}^{-2} \times 10^{-6}$ |
-| ---------- | ---------------------------- | ---------------------------- | ------------------------------------------------------- |
-| Si         | $\infty$                    | 2                            | 2.07                                                    |
-| SiO2       | 20                           | 4                            | 3.47                                                    |
-| Surfactant | 30                           | 6                            | 0.21                                                    |
-| D2O        | $\infty$                    | \-                           | 6.37                                                    |
+| | $\mathrm{Thickness}$ / $\mathrm{\mathring A}$ | $\mathrm{Roughness}$ / $\mathrm{\mathring A}$ | $\mathrm{SLD}$ / $\mathrm{\mathring A}^{-2} \times 10^{-6}$ |
+| - | - | - | - |
+| $\mathrm{Si}$ | $\infty$ | $2$ | $2.07$ |
+| $\mathrm{SiO_{2}}$ | $20$ | $4$ | $3.47$ |
+| $\mathrm{Surfactant}$ | $30$ | $6$ | $0.21$ |
+| $\mathrm{D_{2}O}$ | $\infty$ | \- | $6.37$ |
 
 We can build a simple model with the following:
 
@@ -44,14 +46,14 @@ roughnesses = (2, 4, 6)
 slds = (2.07, 3.47, 0.21, 6.37)
 
 # create a refnxVFP object.
-vfp = vfp.refnxVFP(slds, lot, lor)
+vfp = vfp.refnxVFP(slds, thicknesses, roughnesses)
 
 # plot SLD, volume fraction proflie & stochastic model of interface.
 vfp.plot()
 plt.show()
 ```
 
-The `vfp.refnxVFP` and `vfp.refl1dVFP` objects can be used in `refnx` and `refl1d` respectively, e.g:
+The `vfp.refnxVFP` and `vfp.refl1dVFP` objects can be used in [refnx](https://refnx.readthedocs.io/en/latest/) and [refl1d](https://refl1d.readthedocs.io/en/latest/) respectively, e.g:
 
 ```python
 from refnx.analysis import GlobalObjective, Parameter, Objective, CurveFitter
@@ -65,7 +67,7 @@ roughnesses = (2, 4, 6)
 slds = (2.07, 3.47, 0.21, 6.37)
 
 # create a refnxVFP object for refnx
-vfp = vfp.refnxVFP(slds, lot, lor)
+vfp = vfp.refnxVFP(slds, thicknesses, roughnesses)
 
 # wrap the vfp object by the fronting and backing materials 
 # when defining the structure.

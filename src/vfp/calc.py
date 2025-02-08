@@ -7,28 +7,41 @@ import numpy as np
 import scipy
 
 
-def consecutive(arr: np.ndarray, stepsize: int = 1) -> list[np.ndarray]:
+def consecutive(arr: np.ndarray) -> list[np.ndarray]:
     """
-    Splits an array into a list of sub arrays where the difference
-    between neighbouring units is not 1.
+    Splits an array into a list of 1d arrays. 
+    Splitting occurs where neighbouring units is not 1.
+    
+    Parameters
+    ----------
+    arr : np.ndarray
+        Array to be split where the values are not consecutive.
+    
+    Returns 
+    -------
+    list[np.ndarray]
+        A list of arrays that all have consecutive values. 
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from vfp.calc import consecutive
+    >>> idxs = np.array([1, 2, 3, 5, 6])
+    >>> consecutive(idxs)
+    [array([1, 2, 3]), array([5, 6])]
     """
-    # return np.split(arr, np.where(np.diff(arr) != stepsize)[0] + 1)
-    return np.split(arr, (np.diff(arr) != stepsize).nonzero()[0] + 1)
-
+    
+    return np.split(arr, (np.diff(arr) != 1).nonzero()[0] + 1)
 
 @lru_cache(maxsize=2)
 def calc_dzs(
     zstart: float, zend: float, points: int, idxs: tuple
 ) -> np.ndarray:
     """
-    Calculates the thickness (z) of each microslice
-    after reducing the VFP in self.init_demag().
+    Calculates the thickness (z) of each microslice after reducing the VFP.
 
-    Cached function to avoid repeated calculation
-    for VFPs with the same input values.
-
-    The thickness of each microslice is approximately
-    the value of self.max_delta_z prior to reduction.
+    The thickness of each microslice is approximately the value of 
+    self.max_delta_z prior to reduction.
 
     Parameters
     ----------
@@ -46,7 +59,7 @@ def calc_dzs(
 
     Returns
     -------
-    dzs : np.array
+    np.array
         microslice thicknesses (1d).
     """
 
@@ -104,31 +117,40 @@ def calc_dzs(
 @lru_cache(maxsize=2)
 def calc_zeds(
     rough: tuple, thick: tuple, mxdz: float
-) -> tuple[float, float, int, np.ndarray]:
+) -> np.ndarray:
     """
-    Given tuples of thicknesses and roughnesses this will return the z values over
-    which the full interface is described.
-    Returns array of z values for VFP calculated using roughnesses & thicknesses.
+    Calculates the z values over which the interface is defined.
+    
+    The range of z values is defined by `thick` and `rough`,
+    while the spacing is defined by `mxdz`.
 
     Parameters
     ----------
-    rough : tuple of roughness values
-        used in calculation of zstart and zend.
-    thick : tuple of thickness values
-        used in calculation of zend.
-    mxdz :  float - self.max_delta_z as defined in the init fuction.
-        used to calculate the number of points in returned z array.
+    rough : tuple
+        Roughnesses of layers in model. 
+        Used in calculation of zstart and zend.
+    thick : tuple
+        Thicknesses of layers in model. 
+        Used in calculation of zend
+    mxdz : float
+        Used to calculate the number of points in returned array.
 
     Returns
     -------
-    zstart : float
-        start z value of VFP.
-    zend : float
-        end z value of VFP.
-    points : integer
-        number of points in zeds.
-    zeds : np.array
-        distance points.
+    np.array
+        Distance points.
+    
+    Examples
+    --------
+    >>> from vfp.calc import calc_zeds    
+    >>> zs = calc_zeds(rough=(3,), thick=(0,), mxdz=0.5)
+    >>> print(zs)
+    [-17.  -16.5 -16.  -15.5 -15.  -14.5 -14.  -13.5 -13.  -12.5 -12.  -11.5
+     -11.  -10.5 -10.   -9.5  -9.   -8.5  -8.   -7.5  -7.   -6.5  -6.   -5.5
+      -5.   -4.5  -4.   -3.5  -3.   -2.5  -2.   -1.5  -1.   -0.5   0.    0.5
+       1.    1.5   2.    2.5   3.    3.5   4.    4.5   5.    5.5   6.    6.5
+       7.    7.5   8.    8.5   9.    9.5  10.   10.5  11.   11.5  12.   12.5
+      13.   13.5  14.   14.5  15.   15.5  16.   16.5  17. ]
     """
     # convert rough & thick tuples to arrays.
     rough = np.array(rough)
@@ -152,15 +174,17 @@ def calc_zeds(
 
     zeds = np.linspace(zstart, zend, num=points)
 
-    return zstart, zend, points, zeds
+    return zeds
 
 
 def one_minus_cdf(
     x: np.ndarray, cumthick: np.ndarray, rough: np.ndarray
 ) -> np.ndarray:
     """
-    Returns 1-CDF for a given set of thickness and
-    roughness that describe an interface.
+    Returns the inverse (1-CDF) of a normal CDF. 
+    
+    The CDF is defined by the cumulative thicknesses, `cumthick`, of the layers
+    and their roughnesses, `rough`.
 
     Parameters
     ----------
@@ -173,7 +197,8 @@ def one_minus_cdf(
 
     Returns
     -------
-    one_minus_cdf : np.array
+    np.array
+    
     """
     # TODO: add other distribution types to this function?
     # exponential, uniform (straight line CDF), ...

@@ -179,15 +179,12 @@ def test_init_demag():
 
 def test_calc_zeds():
     sample_dict = init_standard_sample()
-    zstart, zend, points, zeds = calc_zeds(
+    zeds = calc_zeds(
         rough=tuple(sample_dict["roughs"]),
         thick=tuple(sample_dict["thicks"]),
         mxdz=0.5,
     )
     expected_output = np.linspace(-17.5, 134, 304)
-    assert_allclose(zstart, -17.5)
-    assert_allclose(zend, 134)
-    assert_allclose(points, 304)
     assert_allclose(zeds, expected_output)
 
 def test_calc_vfp():
