@@ -16,8 +16,8 @@ Lets build a model with the following layers
 $\mathrm{Si}$ | $\mathrm{SiO_{2}}$ | $\mathrm{Surfactant}$ | $\mathrm{D_{2}O}$
 
 where $\mathrm{Si}$ and $\mathrm{D_{2}O}$ are the fronting and backing respectively.
-The characteristics of the layers are summarised in Table 1.
-|            | $\mathrm{Thickness}$ / $\mathrm{\AA}$ | $\mathrm{Roughness}$ / $\mathrm{\AA}$ | $\mathrm{SLD}$ / $\mathrm{\AA}^{-2} \times 10^{-6}$ |
+The characteristics of the layers are summarised in the following table.
+|            | $\mathrm{Thickness}$ / $\mathrm{\mathring A}$ | $\mathrm{Roughness}$ / $\mathrm{\mathring A}$ | $\mathrm{SLD}$ / $\mathrm{\mathring A}^{-2} \times 10^{-6}$ |
 | ---------- | ---------------------------- | ---------------------------- | ------------------------------------------------------- |
 | Si         | $\infty$                    | 2                            | 2.07                                                    |
 | SiO2       | 20                           | 4                            | 3.47                                                    |
