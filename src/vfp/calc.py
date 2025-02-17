@@ -431,8 +431,8 @@ def get_demag(
     >>> import numpy as np
     >>> from vfp.calc import get_demag
     >>> get_demag(dist=np.linspace(0, 10, 11), 
-                  locs=np.array([4, 3]), 
-                  widths=np.array([1, 1]))
+    >>>           locs=np.array([4, 3]), 
+    >>>           widths=np.array([1, 1]))
     array([3.16712418e-05, 1.34989803e-03, 2.27501254e-02, 1.58650229e-01,
            4.99325051e-01, 8.22204042e-01, 8.22204042e-01, 4.99325051e-01,
            1.58650229e-01, 2.27501254e-02, 1.34989803e-03])
@@ -492,9 +492,9 @@ def integrate_vfp(
     >>> pdfs = scipy.stats.norm.pdf(x=z[:, np.newaxis], loc=[35, 60], scale=[3, 4]).T
     >>> pdfs[0] = pdfs[0] * 3 # make the first peak have an integral of 3.
     >>> integrate_vfp(zeds=tuple(z), 
-                      indexs=(), 
-                      red_vfps=tuple(tuple(i) for i in pdfs), 
-                      layer_indices=(0, 1))
+    >>>               indexs=(), 
+    >>>               red_vfps=tuple(tuple(i) for i in pdfs), 
+    >>>               layer_indices=(0, 1))
     [np.float64(3.0), np.float64(1.0000000000000002)]
     """
     if not layer_indices:
