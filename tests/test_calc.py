@@ -243,23 +243,23 @@ def test_calc_vfp():
 def test_get_demag():
     zed = np.linspace(-17.5, 134, 304)
     # test no width and no locs case
-    expected_output = np.ones_like(zed)
+    expected_output = np.zeros_like(zed)
     real_output = get_demag(dist=zed, locs=np.array([]), widths=np.array([]))
     assert_allclose(real_output, expected_output)
     # test 1 set of widths and locs
     real_output = get_demag(
         dist=zed, locs=np.array([1, 25]), widths=np.array([1, 5])
     )
-    expected_output = 1 - (
+    expected_output = (
         scipy.stats.norm.cdf(zed, loc=1, scale=1)
         * (1 - scipy.stats.norm.cdf(zed, loc=1 + 25, scale=5))
     )
     assert_allclose(real_output, expected_output)
     # test 2 set of widths and locs.
     real_output = get_demag(
-        dist=zed, locs=np.array([1, 25, 18, 60]), widths=np.array([1, 5, 3, 6])
+        dist=zed, locs=np.array([1, 25, 1, 60]), widths=np.array([1, 5, 3, 6])
     )
-    cumlocs = np.cumsum(np.array([1, 25, 18, 60]))
+    cumlocs = np.cumsum(np.array([1, 25, 1, 60]))
     peak1 = scipy.stats.norm.cdf(zed, loc=cumlocs[0], scale=1) * (
         1 - scipy.stats.norm.cdf(zed, loc=cumlocs[1], scale=5)
     )
@@ -269,7 +269,7 @@ def test_get_demag():
         * (1 - scipy.stats.norm.cdf(zed, loc=cumlocs[3], scale=6))
     )
 
-    expected_output = 1 - (peak1 + peak2)
+    expected_output = peak1 + peak2
     assert_allclose(real_output, expected_output)
 
 def test_integrate_vfp():
