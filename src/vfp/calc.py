@@ -324,7 +324,7 @@ def init_demag(
     Calculates the product of the VFP and the demagnetisation factor.
     
     Regions in mag_comp and the VFP are then removed if the 
-    difference between neighbouring units in :math:`mag_comp < 10^{-5}'. 
+    difference between neighbouring units in `mag_comp` :math:`< 10^{-5}`. 
     These are referred to as the "reduced" VFP and `mag_comp`.
     
     Where these regions have been deleted, a record is kept in `idxs`
