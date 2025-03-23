@@ -173,34 +173,36 @@ class VFP(BaseVFP):
         return attrs
     
     @classmethod
-    def from_transform(cls, 
-                       vfp_attrs: dict[str, np.ndarray | str | float | None | Callable]) -> VFP:
-            """
-            Transforms a dictionary of vfp attributes to a `VFP`.
+    def from_transform(
+        cls, 
+        vfp_attrs: dict[str, np.ndarray | str | float | None | Callable]
+    ) -> VFP:
+        """
+        Transforms a dictionary of vfp attributes to a `VFP`.
 
-            Parameters
-            ----------
-            vfp_attrs : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable])
-                Original vfp attributes.    
+        Parameters
+        ----------
+        vfp_attrs : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable])
+            Original vfp attributes.    
 
-            Returns
-            -------
-            VFP
-                VFP object instantiated from `vfp_attrs`.
-            """
-            # remove attrs not in input pars.
-            attr_dict = copy.deepcopy(vfp_attrs)
-            del attr_dict['conformal'], attr_dict['name']
-            # transform all arrays to lists to be compatible with init.
-            for key, seq in attr_dict.items():
-                attr_dict[key] = (
-                    seq.astype(float).tolist() if isinstance(seq, np.ndarray) else seq
-                )
-            attr_dict['roughnesses'] = [
-                val if ~np.isnan(val) else 'conformal' for val in attr_dict['roughnesses']
-            ]
-            vfp = VFP(**attr_dict)
-            return vfp
+        Returns
+        -------
+        VFP
+            VFP object instantiated from `vfp_attrs`.
+        """
+        # remove attrs not in input pars.
+        attr_dict = copy.deepcopy(vfp_attrs)
+        del attr_dict['conformal'], attr_dict['name']
+        # transform all arrays to lists to be compatible with init.
+        for key, seq in attr_dict.items():
+            attr_dict[key] = (
+                seq.astype(float).tolist() if isinstance(seq, np.ndarray) else seq
+            )
+        attr_dict['roughnesses'] = [
+            val if ~np.isnan(val) else 'conformal' for val in attr_dict['roughnesses']
+        ]
+        vfp = VFP(**attr_dict)
+        return vfp
     
     def _createparam(self):
         """
@@ -214,7 +216,10 @@ class VFP(BaseVFP):
         """
         pass
 
-    def transform(self, wanted_vfp: Literal['refnx', 'refl1d']) -> refnxVFP | refl1dVFP:
+    def transform(
+        self,
+        wanted_vfp: Literal['refnx', 'refl1d']
+    ) -> refnxVFP | refl1dVFP:
         """
         Transform VFP to a refnxVFP or refl1dVFP.
         
@@ -351,17 +356,20 @@ if HAS_REFNX:
         @property
         def parameters(self) -> Parameters:
             """
-            Collates all refnx.analysis.Parameter(s) in the refnxVFP to a list, llps.
-            Then adds all parameters in llps to the refnx.analysis.Parameters object, p.
-            The list is then used by refnx to track which parameters are varying
-            in the model.
-
+            Collates `refnxParameter`s in `self.vfp_attrs` in
+            `refnx.analysis.Parameters`
+            
+            refnx uses this property when collating all varying parameters
+            in a model. If a parameter that is passed to the `refnxVFP` is
+            a function of other parameters, these will not automatically
+            tracked. These should be passed to the auxiliary parameters of
+            a refnx's global objective.
+            
             Returns
             -------
-            Parameters
+            `refnx.analysis.Parameters`
             """
             # create a list of list of parameters
-            # if a particular sublist of parameters is None, then don't add to llps.
             p = Parameters(name=self._name)
             llps = [
                 lps
@@ -374,7 +382,7 @@ if HAS_REFNX:
                     self.vfp_attrs.mslds,
                     self.vfp_attrs.islds,
                 ]
-                if lps.size > 0 # this should only accept non-empty par arrays.
+                if lps.size > 0 # only accept non-empty par arrays.
             ]
 
             p.extend(
@@ -446,7 +454,7 @@ if HAS_REFNX:
             Parameters
             ----------
             structure : refnx.reflect.Structure, optional
-            The refnx.reflect.Structure hosting this VFP component. Defaults to None.
+                The refnx.reflect.Structure hosting this VFP component. Defaults to None.
 
             Raises
             ------
@@ -475,8 +483,10 @@ if HAS_REFNX:
             return slabs
         
         @classmethod
-        def from_transform(cls, 
-                           vfp_attrs: dict[str, np.ndarray | str | float | None | Callable]) -> refnxVFP:
+        def from_transform(
+            cls, 
+            vfp_attrs: dict[str, np.ndarray | str | float | None | Callable]
+        ) -> refnxVFP:
             """
             Transforms a dictionary of vfp attributes to a `refnxVFP`.
 
@@ -496,7 +506,9 @@ if HAS_REFNX:
             # transform all arrays to lists to be compatible with init.
             for key, seq in attr_dict.items():
                 attr_dict[key] = seq.tolist() if isinstance(seq, np.ndarray) else seq
-            attr_dict['roughnesses'] = [val if val is not None else 'conformal' for val in attr_dict['roughnesses']]
+            attr_dict['roughnesses'] = [
+                val if val is not None else 'conformal' for val in attr_dict['roughnesses']
+            ]
             refnxvfp = refnxVFP(**attr_dict)
             return refnxvfp
         
@@ -516,7 +528,7 @@ if HAS_REFNX:
 
             Returns
             -------
-            type[BaseVFP]
+            VFP | refl1dVFP
                 Transformed version of VFP.
             """
             if wanted_vfp not in ['vfp', 'refl1d']:
@@ -604,6 +616,12 @@ if HAS_REFNX:
 
 if HAS_REFL1D:
     class refl1dVFP(Layer, BaseVFP):
+        """
+        VFP for use with refl1d.
+        
+        Can be initialised from parameters,
+        or initialised from `vfp.vfp.VFP`.
+        """
         def __init__(
             self,
             nslds: tuple[ParameterLike] | list[ParameterLike],
@@ -691,6 +709,62 @@ if HAS_REFL1D:
                 thicks.sum(), name=f"{self._name} - total thickness"
             )
             
+        # def set_parameter_bounds(
+        #     self, 
+        #     bounds: dict[str, dict[int, tuple[float, float] | PDF | Interval]]
+        #     ) -> None:
+        #     """
+        #     Set bounds on refnxParameters in `self.vfp_attrs`.
+            
+        #     Use this function to set the prior for any parameters
+        #     that are to be fit / sampled.
+            
+        #     The key names on the first level of the dictionary must
+        #     match the names of the attributes in self.vfp_attrs. The
+        #     key values of the second level of the dictionaries should
+        #     match the indices of the parameters you wish to set priors for.
+            
+        #     Parameters
+        #     ----------
+        #     bounds : dict
+        #         Nested dictionary of tuple[float, float],
+        #         `refnx.analysis.PDF` or `refnx.analysis.Interval`
+        #         to be applied to the refnxParameters in `self.vfp_attrs`. 
+            
+        #     Example
+        #     -------
+        #     >>> from vfp.vfp_refactor import refnxVFP
+        #     >>> import scipy.stats as stats
+        #     >>> thicknesses = (0, 20)
+        #     >>> roughnesses = (2, 1)
+        #     >>> nslds = (2.07, 3.47, 6.37) # Si, SiO2, D2O
+        #     >>> refnx_vfp = refnxVFP(nslds, thicknesses, roughnesses)
+        #     # lets set uniform priors on the thickness and roughness of SiO2
+        #     # and set a gaussian prior on the sld of D2O with mean 6.37 & std 0.03
+        #     >>> prior_dict = {'thicknesses' : {1 : (10, 30)},
+        #                       'roughnesses' : {1 : (1, 4)},
+        #                       'nslds' : {2 : PDF(stats.norm(6.37, 0.03))}
+        #                       }
+        #     >>> refnx_vfp.set_parameter_bounds(bounds=prior_dict)
+        #     >>> refnx_vfp.vfp_attrs.thicknesses[1]
+        #     Parameter(value=20.0, name='refnxVFP - thicknesses - layer 1', vary=True, bounds=Interval(lb=10.0, ub=30.0), constraint=None)
+        #     >>> refnx_vfp.vfp_attrs.roughnesses[1]
+        #     Parameter(value=1.0, name='refnxVFP - roughnesses - layer 1/backing', vary=True, bounds=Interval(lb=1.0, ub=4.0), constraint=None)
+        #     >>> refnx_vfp.vfp_attrs.nslds[2]
+        #     Parameter(value=6.37, name='refnxVFP - nsld - backing', vary=True, bounds=PDF(<scipy.stats._distn_infrastructure.rv_continuous_frozen object at 0x00000145898486E0>), constraint=None)
+        #     """
+        #     # take parameters from vfp_attrs as parameters property
+        #     # is built from vfp_attrs. Take shallow copy, which will
+        #     # update the attributes of vfp_attrs.
+        #     pars_dict = self.vfp_attrs.__dict__
+            
+        #     # apply bounds nested dict to pars_dict:
+        #     for keys, pars in bounds.items():
+        #         for idx, prior in pars.items():
+        #             pars_dict[keys][idx].bounds = prior
+        #             # set to vary if prior set.
+        #             pars_dict[keys][idx].vary = True
+            
         def to_dict(self) -> dict[str | str, np.ndarray]:
             """
             Returns a dict repr of the refl1dVFPs attributes for use with `bumps.parameters`.
@@ -731,13 +805,13 @@ if HAS_REFL1D:
             llps = [
                 lps
                 for lps in [
-                    self.thicknesses,
-                    self.roughnesses_p,
-                    self.demaglocs,
-                    self.demagwidths,
-                    self.nucSLDs_p,
-                    self.magSLDs_p,
-                    self.nuciSLDs_p,
+                    self.vfp_attrs.thicknesses,
+                    self.vfp_attrs.roughnesses,
+                    self.vfp_attrs.demaglocs,
+                    self.vfp_attrs.demagwidths,
+                    self.vfp_attrs.nslds,
+                    self.vfp_attrs.mslds,
+                    self.vfp_attrs.islds,
                 ]
                 if lps
             ]
@@ -756,15 +830,14 @@ if HAS_REFL1D:
             # get indices of where parameter lists aren't zero.
             keys_idx = [
                 i
-                for i, j in enumerate(
-                    [
-                        self.thicknesses,
-                        self.roughnesses_p,
-                        self.demaglocs,
-                        self.demagwidths,
-                        self.nucSLDs_p,
-                        self.magSLDs_p,
-                        self.nuciSLDs_p,
+                for i, j in enumerate([
+                    self.vfp_attrs.thicknesses,
+                    self.vfp_attrs.roughnesses,
+                    self.vfp_attrs.demaglocs,
+                    self.vfp_attrs.demagwidths,
+                    self.vfp_attrs.nslds,
+                    self.vfp_attrs.mslds,
+                    self.vfp_attrs.islds,
                     ]
                 )
                 if j
@@ -801,6 +874,61 @@ if HAS_REFL1D:
             # now append slds, islds and thicks to slabs.
             for i in range(0, len(thicks)):
                 slabs.append(rho=slds[i], irho=islds[i], w=thicks[i], sigma=0)
+        
+        @classmethod
+        def from_transform(
+            cls, 
+            vfp_attrs: dict[str, np.ndarray | str | float | None | Callable]
+        ) -> refl1dVFP:
+            """
+            Transforms a dictionary of vfp attributes to a `refl1dVFP`.
+
+            Parameters
+            ----------
+            vfp_attrs : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable])
+                Original vfp attributes.    
+
+            Returns
+            -------
+            refl1dVFP
+                A refl1dVFP object instantiated from `vfp_attrs`.
+            """
+            # remove attrs not in input pars.
+            attr_dict = copy.deepcopy(vfp_attrs)
+            del attr_dict['conformal'], attr_dict['name']
+            # transform all arrays to lists to be compatible with init.
+            for key, seq in attr_dict.items():
+                attr_dict[key] = seq.tolist() if isinstance(seq, np.ndarray) else seq
+            attr_dict['roughnesses'] = [
+                val if val is not None else 'conformal' for val in attr_dict['roughnesses']
+            ]
+            refnxvfp = refl1dVFP(**attr_dict)
+            return refnxvfp
+        
+        def transform(self, wanted_vfp: Literal['vfp', 'refnx']) -> VFP | refnxVFP:
+            """
+            Transform `refl1dVFP` to a `VFP` or `refnxVFP`.
+        
+            Parameters
+            ----------
+            wanted_vfp : str
+                Either "vfp" or "refnx".
+
+            Raises
+            ------
+            ValueError
+                If vfp_type is not "refnx" or "vfp".
+
+            Returns
+            -------
+            VFP | refl1dVFP
+                Transformed version of VFP.
+            """
+            if wanted_vfp not in ['vfp', 'refnx']:
+                raise ValueError(f'vfp_type must be either "vfp" or "refnx".')
+        
+            transformed_vfp = init_specific_VFP(self, wanted_vfp, self.vfp_attrs.__dict__)
+            return transformed_vfp
                 
         def _createparam(
             self,
@@ -891,7 +1019,8 @@ if HAS_REFL1D:
 def init_specific_VFP(
     original_vfp: VFP | refnxVFP | refl1dVFP,
     vfp_type: Literal['vfp', 'refnx', 'refl1d'],
-    vfp_dict: dict[str, np.ndarray  |  str  |  float  |  None  |  Callable]) -> VFP | refnxVFP | refl1dVFP:
+    vfp_dict: dict[str, np.ndarray  |  str  |  float  |  None  |  Callable]
+) -> VFP | refnxVFP | refl1dVFP:
     """
     Helper function to load a type of VFP.
     
@@ -926,7 +1055,7 @@ def init_specific_VFP(
         target_vfp = VFP
     
     else:
-        raise ValueError("model_type must be 'vfp' or 'refnxVFP' or 'refl1dVFP'.")
+        raise ValueError("model_type must be 'vfp' / 'refnxVFP' / 'refl1dVFP'.")
 
     # if asked for the same type as original_vfp just return original_vfp.
     if isinstance(target_vfp, type(original_vfp)):
