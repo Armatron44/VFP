@@ -13,7 +13,6 @@ python = ">=3.11, <4.0"
 matplotlib = ">=3.10.0"
 numpy = ">=2.2"
 scipy = ">=1.14"
-refnx = ">=0.1.51"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
@@ -26,6 +25,10 @@ myst-nb = "^1.2.0"
 sphinx-autoapi = "^3.4.0"
 sphinx-rtd-theme = "^3.0.2"
 deptry = "^0.23.0"
+sphinx-math-dollar = "^1.2.1"
+
+[tool.poetry.group.refnx.dependencies]
+refnx = {">=0.1.51", optional = true}
 
 [tool.poetry.group.refl1d.dependencies]
 refl1d = {version = "^0.8.16", optional = true}
