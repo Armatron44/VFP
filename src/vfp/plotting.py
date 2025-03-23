@@ -1,5 +1,6 @@
 # standard
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 # third party
 import numpy as np
@@ -8,7 +9,8 @@ from scipy import stats
 import matplotlib.pyplot as plt
 import matplotlib
 
-from vfp.basevfp import BaseVFP
+if TYPE_CHECKING:
+    from vfp.basevfp import BaseVFP
 
 # FIXME: Colours for orientation = back seem to be broken.
 def surfaces_for_display(vfp: BaseVFP, 
