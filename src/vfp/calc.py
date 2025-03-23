@@ -162,7 +162,6 @@ def calc_zeds(
     # convert rough & thick tuples to arrays.
     rough = np.array(rough)
     thick = np.array(thick)
-
     # find the start of VF profile.
     zstart_nr = -5 - (4 * rough[0])
 
@@ -316,7 +315,7 @@ def calc_vfp(
 def init_demag(
     locs: tuple[float], 
     widths: tuple[float], 
-    mSLDs: tuple[float], 
+    mslds: tuple[float], 
     zeds: tuple[float], 
     vfp: tuple[tuple[float]]
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -331,9 +330,9 @@ def init_demag(
     for use in `calc_dzs`.
 
     Returns the following:
-    1. reduced_vfp and reduced_magcomp - used in the calculation of SLDs.
-    2. idxs - the indices of where points were removed from VFP and mag_comp.
-    3. demag_arr - demagnetisation array, not reduced.
+    1 & 2. reduced_vfp and reduced_magcomp - used in the calculation of SLDs.
+    3. idxs - the indices of where points were removed from VFP and mag_comp.
+    4. demag_arr - demagnetisation array, not reduced.
 
     Parameters
     ----------
@@ -341,7 +340,7 @@ def init_demag(
         values to describe demagnetisation peak(s) locations.
     widths : tuple[float]
         values to describe demagnetisation peaks(s) widths.
-    mSLDs : tuple[float]
+    mslds : tuple[float]
         tuple of magnetic SLD values of the layers.
     zeds : tuple[float]
         tuple of z values across VFP.
@@ -363,20 +362,20 @@ def init_demag(
     """
     locs = np.array(locs)
     widths = np.array(widths)
-    mSLDs = np.array(mSLDs)
+    mslds = np.array(mslds)
     zeds = np.array(zeds)
     vfp = np.array(vfp)
 
     # init an array for any magnetic deadness.
-    demag_arr = np.ones((len(mSLDs), len(zeds)))
+    demag_arr = np.ones((len(mslds), len(zeds)))
 
     # use the following function to model "dead" structure in magnetic layers.
     # it should differ from unity if there are peaks and widths supplied.
     demag_factor = 1 - get_demag(zeds, locs, widths)
 
     # now apply demag_factor to all layers that have a magnetic component.
-    for i in range(0, len(mSLDs)):
-        if mSLDs[i] != 0:
+    for i in range(0, len(mslds)):
+        if mslds[i] != 0:
             demag_arr[i] = demag_arr[i] * demag_factor
 
     # calculate magnetic composition of each layer over the interface using VFPs.
