@@ -453,9 +453,9 @@ class BaseVFP(ABC):
         raise NotImplementedError
     
     @abstractmethod
-    def set_parameter_bounds(self):
+    def set_parameter_prior(self):
         """
-        Abstract method to set bounds on fitting parameters.
+        Abstract method to set priors on fitting parameters.
         """
         raise NotImplementedError
     
