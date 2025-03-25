@@ -10,9 +10,10 @@ from vfp.basevfp import BaseVFP, VFPAttributes, check_init_input
 from vfp.typing import ParameterLike
 
 HAS_REFL1D = False
+# This is likely to change as bumps / refl1d are going through an extensive refactor.
 try:
-    from bumps.parameter import Parameter as bumpsParameter, to_dict, Operator 
-    from refl1d.model import Layer
+    from bumps.parameter import Parameter as bumpsParameter, to_dict, Expression 
+    from refl1d.sample.layers import Layer
     from refl1d.probe import NeutronProbe
     from refl1d.profile import Microslabs
     HAS_REFL1D = True
@@ -210,7 +211,7 @@ class VFP(BaseVFP):
         """
         pass
     
-    def set_parameter_bounds(self) -> None:
+    def set_parameter_prior(self) -> None:
         """
         Not required for this class.
         """
@@ -390,9 +391,9 @@ if HAS_REFNX:
             )  # add defined parameters to parameter list.
             return p
         
-        def set_parameter_bounds(
+        def set_parameter_prior(
             self, 
-            bounds: dict[str, dict[int, tuple[float, float] | PDF | Interval]]
+            prior: dict[str, dict[int, tuple[float, float] | PDF | Interval]]
             ) -> None:
             """
             Set bounds on refnxParameters in `self.vfp_attrs`.
@@ -426,7 +427,7 @@ if HAS_REFNX:
                               'roughnesses' : {1 : (1, 4)},
                               'nslds' : {2 : PDF(stats.norm(6.37, 0.03))}
                               }
-            >>> refnx_vfp.set_parameter_bounds(bounds=prior_dict)
+            >>> refnx_vfp.set_parameter_prior(prior=prior_dict)
             >>> refnx_vfp.vfp_attrs.thicknesses[1]
             Parameter(value=20.0, name='refnxVFP - thicknesses - layer 1', vary=True, bounds=Interval(lb=10.0, ub=30.0), constraint=None)
             >>> refnx_vfp.vfp_attrs.roughnesses[1]
@@ -440,7 +441,7 @@ if HAS_REFNX:
             pars_dict = self.vfp_attrs.__dict__
             
             # apply bounds nested dict to pars_dict:
-            for keys, pars in bounds.items():
+            for keys, pars in prior.items():
                 for idx, prior in pars.items():
                     pars_dict[keys][idx].bounds = prior
                     # set to vary if prior set.
@@ -705,69 +706,85 @@ if HAS_REFL1D:
             # refl1d needs total thickness of the vfp as attr
             # at the beginning and throughout fitting.
             _, _, thicks = self.process_model()
-            self.thickness = bumpsParameter.default(
+            self.thickness = bumpsParameter(
                 thicks.sum(), name=f"{self._name} - total thickness"
             )
             
-        # def set_parameter_bounds(
-        #     self, 
-        #     bounds: dict[str, dict[int, tuple[float, float] | PDF | Interval]]
-        #     ) -> None:
-        #     """
-        #     Set bounds on refnxParameters in `self.vfp_attrs`.
+        def set_parameter_prior(
+            self, 
+            prior: dict[str, dict[int, tuple[float, float]]]
+            ) -> None:
+            """
+            Set bounds on `bumpsParameter`s in `self.vfp_attrs`.
             
-        #     Use this function to set the prior for any parameters
-        #     that are to be fit / sampled.
+            Use this function to set the prior for any parameters
+            that are to be fit / sampled.
             
-        #     The key names on the first level of the dictionary must
-        #     match the names of the attributes in self.vfp_attrs. The
-        #     key values of the second level of the dictionaries should
-        #     match the indices of the parameters you wish to set priors for.
+            The key names on the first level of the dictionary must
+            match the names of the attributes in `self.vfp_attrs`. The
+            key values of the second level of the dictionaries should
+            match the indices of the parameters you wish to set priors for.
             
-        #     Parameters
-        #     ----------
-        #     bounds : dict
-        #         Nested dictionary of tuple[float, float],
-        #         `refnx.analysis.PDF` or `refnx.analysis.Interval`
-        #         to be applied to the refnxParameters in `self.vfp_attrs`. 
+            Parameters
+            ----------
+            bounds : dict
+                Nested dictionary of tuple[float, float],
+                to be applied to the `bumpsParameter`s in `self.vfp_attrs`. 
             
-        #     Example
-        #     -------
-        #     >>> from vfp.vfp_refactor import refnxVFP
-        #     >>> import scipy.stats as stats
-        #     >>> thicknesses = (0, 20)
-        #     >>> roughnesses = (2, 1)
-        #     >>> nslds = (2.07, 3.47, 6.37) # Si, SiO2, D2O
-        #     >>> refnx_vfp = refnxVFP(nslds, thicknesses, roughnesses)
-        #     # lets set uniform priors on the thickness and roughness of SiO2
-        #     # and set a gaussian prior on the sld of D2O with mean 6.37 & std 0.03
-        #     >>> prior_dict = {'thicknesses' : {1 : (10, 30)},
-        #                       'roughnesses' : {1 : (1, 4)},
-        #                       'nslds' : {2 : PDF(stats.norm(6.37, 0.03))}
-        #                       }
-        #     >>> refnx_vfp.set_parameter_bounds(bounds=prior_dict)
-        #     >>> refnx_vfp.vfp_attrs.thicknesses[1]
-        #     Parameter(value=20.0, name='refnxVFP - thicknesses - layer 1', vary=True, bounds=Interval(lb=10.0, ub=30.0), constraint=None)
-        #     >>> refnx_vfp.vfp_attrs.roughnesses[1]
-        #     Parameter(value=1.0, name='refnxVFP - roughnesses - layer 1/backing', vary=True, bounds=Interval(lb=1.0, ub=4.0), constraint=None)
-        #     >>> refnx_vfp.vfp_attrs.nslds[2]
-        #     Parameter(value=6.37, name='refnxVFP - nsld - backing', vary=True, bounds=PDF(<scipy.stats._distn_infrastructure.rv_continuous_frozen object at 0x00000145898486E0>), constraint=None)
-        #     """
-        #     # take parameters from vfp_attrs as parameters property
-        #     # is built from vfp_attrs. Take shallow copy, which will
-        #     # update the attributes of vfp_attrs.
-        #     pars_dict = self.vfp_attrs.__dict__
+            Example
+            -------
+            >>> from vfp import refl1dVFP
+            >>> import scipy.stats as stats
+            >>> thicknesses = (0, 20)
+            >>> roughnesses = (2, 1)
+            >>> nslds = (2.07, 3.47, 6.37) # Si, SiO2, D2O
+            >>> refl1d_vfp = refl1dVFP(nslds, thicknesses, roughnesses)
+            # lets set uniform priors on the thickness and roughness of SiO2
+            >>> prior_dict = {'thicknesses' : {1 : (10, 30)},
+                              'roughnesses' : {1 : (1, 4)},
+                              }
+            >>> refl1d_vfp.set_parameter_prior(prior=prior_dict)
+            >>> refl1d_vfp.vfp_attrs.thicknesses[1].bounds
+            (10, 30)
+            >>> refl1d_vfp.vfp_attrs.roughnesses[1].bounds
+            (1, 4)
+            """
+            # TODO: how can I get this to work with scipy.stats.distributions?
             
-        #     # apply bounds nested dict to pars_dict:
-        #     for keys, pars in bounds.items():
-        #         for idx, prior in pars.items():
-        #             pars_dict[keys][idx].bounds = prior
-        #             # set to vary if prior set.
-        #             pars_dict[keys][idx].vary = True
+            # take parameters from vfp_attrs as parameters property
+            # is built from vfp_attrs. Take shallow copy, which will
+            # update the attributes of vfp_attrs.
+            pars_dict = self.vfp_attrs.__dict__
+            
+            # apply bounds nested dict to pars_dict:
+            for keys, pars in prior.items():
+                for idx, prior in pars.items():
+                    low, high = prior
+                    pars_dict[keys][idx].range(low, high)
+        
+        @property
+        def vfp_attrs(self) -> VFPAttributes:
+            """
+            Use private attributes setup in __init__ to create a VFPAttributes object.
+            """
+            attrs = VFPAttributes(nslds=self._nslds,
+                                  thicknesses=self._thicknesses,
+                                  roughnesses=self._roughnesses,
+                                  islds=self._islds,
+                                  mslds=self._mslds,
+                                  spin_state=self._spin_state,
+                                  orientation=self._orientation,
+                                  demaglocs=self._demaglocs,
+                                  demagwidths=self._demagwidths,
+                                  sld_constraint=self._sld_constraint,
+                                  max_delta_z=self._max_delta_z,
+                                  conformal=self._conformal,
+                                  name=self._name)
+            return attrs
             
         def to_dict(self) -> dict[str | str, np.ndarray]:
             """
-            Returns a dict repr of the refl1dVFPs attributes for use with `bumps.parameters`.
+            Returns a dict repr of the VFPattributes for use with `bumps.parameters`.
             Used when saving a refl1d model details as a .json file.
 
             Returns
@@ -775,77 +792,24 @@ if HAS_REFL1D:
             dict[str | str, np.ndarray]
                 repr of the refl1d.vfp_attrs.
             """
-            return to_dict(
-                {
-                    "type": "refl1dVFP",
-                    "name": self._name,
-                    "thicknesses": self.vfp_attrs.thicknesses,
-                    "roughnesses": self.vfp_attrs.roughnesses,
-                    "nslds": self.vfp_attrs.nslds,
-                    "mslds": self.vfp_attrs.mslds,
-                    "islds": self.vfp_attrs.islds,
-                    "demaglocs": self.vfp_attrs.demaglocs,
-                    "demagwidths": self.vfp_attrs.demagwidths,
-                }
-            )
+            
+            return to_dict(self.vfp_attrs.__dict__)
 
         def layer_parameters(self) -> dict:
             """
-            Takes all the parameters which define the refl1d VFP, and organises them
-            into a dictionary. The keys of the dictionary are the VFP arguments.
+            Get the fitting parameters of the refl1dVFP.
 
             Returns
             -------
             dictionary
                 dict of parameters with equal to the name of the VFP arguments.
             """
-            print(self.to_dict())
-            # init a list of parameter lists.
-            # only include the parameter list if its not empty.
-            llps = [
-                lps
-                for lps in [
-                    self.vfp_attrs.thicknesses,
-                    self.vfp_attrs.roughnesses,
-                    self.vfp_attrs.demaglocs,
-                    self.vfp_attrs.demagwidths,
-                    self.vfp_attrs.nslds,
-                    self.vfp_attrs.mslds,
-                    self.vfp_attrs.islds,
-                ]
-                if lps
-            ]
-
-            # create a list of keys for the parameter dictionary.
-            keys = [
-                "thicknesses",
-                "roughnesses",
-                "demaglocs",
-                "demagwidths",
-                "nslds",
-                "mslds",
-                "islds",
-            ]
-
-            # get indices of where parameter lists aren't zero.
-            keys_idx = [
-                i
-                for i, j in enumerate([
-                    self.vfp_attrs.thicknesses,
-                    self.vfp_attrs.roughnesses,
-                    self.vfp_attrs.demaglocs,
-                    self.vfp_attrs.demagwidths,
-                    self.vfp_attrs.nslds,
-                    self.vfp_attrs.mslds,
-                    self.vfp_attrs.islds,
-                    ]
-                )
-                if j
-            ]
-
-            # create dictionary with keys, indices and the list of parameter lists.
-            p = dict(zip([keys[i] for i in keys_idx], llps))
-            print(p)
+            vfp_dict = self.to_dict()
+            p = copy.deepcopy(vfp_dict)
+            # remove those that are not to be fit.
+            del p['spin_state'], p['orientation'], p['sld_constraint'], p['max_delta_z'], p['conformal'], p['name']
+            # remove empty lists.
+            p = {key : val for key, val in p.items() if val}
             return p
 
         def render(self,
@@ -985,35 +949,30 @@ if HAS_REFL1D:
             for layer_str, par in zip(layer_strs, params):
                 if nameid == 'roughnesses':
                     if par is not None:
-                        if isinstance(par, bumpsParameter):
-                            output.append(par)
+                        # I believe bumpsParameter.default acts like possibly_create_parameter.
                         output.append(
-                            bumpsParameter(
-                                par,
-                                name=f"{self._name} - {nameid} - {layer_str}",
+                            bumpsParameter.default(
+                            par, 
+                            name=f"{self._name} - {nameid} - {layer_str}"
                             )
                         )
                     else:
                         output.append(None)
                 else:
-                    if isinstance(par, bumpsParameter):
-                        output.append(par)
-                    elif isinstance(par, Operator):
+                    if isinstance(par, Expression):
                         warnings.warn(
                         "If msld / isld parameters are part of a function" 
                         " (i.e f(p1, p2) = p1 + p2), they must be of type"
                         " bumps.parameter.Parameter. Do not use material or SLD objects."
                         )
                         output.extend(par.parameters())
-                    elif not isinstance(
-                                par, bumpsParameter
-                            ) and not isinstance(par, Operator):
+                    else:
                         output.append(
-                            bumpsParameter(
-                                par,
-                                name=f"{self._name} - {nameid} - {layer_str}",
-                                    )
-                                )
+                            bumpsParameter.default(
+                            par, 
+                            name=f"{self._name} - {nameid} - {layer_str}"
+                            )
+                        )
             return output
 
 def init_specific_VFP(
