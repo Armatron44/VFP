@@ -18,8 +18,9 @@ from vfp.typing import ParameterLike
 @dataclass
 class VFPAttributes:
     """
-    A dataclass to store the attributes of child classes that inherit BaseVFP.
-    All of these attributes are set by the __init__ method of a VFP class.
+    A dataclass to hold reference to the attributes of child classes that inherit BaseVFP.
+    These attributes are set by the __init__ method of a VFP class.
+    The parameters held here can be updated by fitters and samplers.
     """
     nslds: np.ndarray
     thicknesses: np.ndarray
@@ -39,6 +40,8 @@ class VFPAttributes:
 class BaseVFP(ABC):
     """
     Handles common functions of VFP.
+    
+    Process is the main function.
     """
     def __init__(self) -> None:
         # create vfp model.
@@ -57,15 +60,15 @@ class BaseVFP(ABC):
             describing VFP type, parameters and values.
         """
         s = (
-            f"name - {self.vfp_attrs.name} \n"
-            f"thicks - {self.vfp_attrs.thicknesses} \n"
-            f"roughs - {self.vfp_attrs.roughnesses} \n"
-            f"nslds - {self.vfp_attrs.nslds} \n"
-            f"mslds - {self.vfp_attrs.mslds} \n"
-            f"islds - {self.vfp_attrs.islds} \n"
-            f"demag locations - {self.vfp_attrs.demaglocs} \n"
-            f"demag widths - {self.vfp_attrs.demagwidths} \n"
-            f"conformal - {self.vfp_attrs.conformal} \n"
+            f"name: {self.vfp_attrs.name} \n"
+            f"thicks: {self.vfp_attrs.thicknesses} \n"
+            f"roughs: {self.vfp_attrs.roughnesses} \n"
+            f"nslds: {self.vfp_attrs.nslds} \n"
+            f"mslds: {self.vfp_attrs.mslds} \n"
+            f"islds: {self.vfp_attrs.islds} \n"
+            f"demag locations: {self.vfp_attrs.demaglocs} \n"
+            f"demag widths: {self.vfp_attrs.demagwidths} \n"
+            f"conformal: {self.vfp_attrs.conformal} \n"
         )
         return s
 
@@ -96,7 +99,7 @@ class BaseVFP(ABC):
 
         # calc z spectrum
         zeds = calc_zeds(self.tup_roughs, self.tup_thicks, self.vfp_attrs.max_delta_z)
-        self.zstart, self.zend, self.points = zeds[0], zeds[-1], zeds.size
+        zstart, zend, points = zeds[0], zeds[-1], zeds.size
 
         # convert to tuple for caching.
         self.zeds = self._arrtotuple(zeds)
@@ -106,7 +109,7 @@ class BaseVFP(ABC):
 
         # get the thickness of each microslab.
         # uses caching and tuples defined above.
-        self.dz = calc_dzs(self.zstart, self.zend, self.points, self.indices)
+        self.dz = calc_dzs(zstart, zend, points, self.indices)
 
         # if VFP.orientation = back --> slabs will have same thickness,
         # just in reverse order
@@ -240,7 +243,7 @@ class BaseVFP(ABC):
             self.red_vfp.T * sld_val for sld_val in [sld_values[0], 
                                                      sld_values[2]]
         ]
-        
+
         # calc magnetic_slds
         sldm_layers = demagf.T * sld_values[1]
         
@@ -444,6 +447,41 @@ class BaseVFP(ABC):
         elif arr.ndim == 2:
             return tuple([tuple([float(val) for val in row]) for row in arr])
     
+    def _init_vfp_attrs(
+        self, 
+        arr_attrs: list[
+            list[ParameterLike | None]
+            | tuple[ParameterLike]
+            | list[int]
+        ],
+        other_attrs: list[
+            Literal['front', 'back'], 
+            Literal['none', 'up', 'down'],
+            Callable | None,
+            float
+        ],
+        name: str
+    ) -> VFPAttributes:
+        """
+        Setup object to hold reference to input parameters.
+        """
+        thicknesses, roughnesses, nslds, islds, mslds, demaglocs, demagwidths, conformal = list(map(np.array, arr_attrs))
+        orientation, spin_state, sld_constraint, max_delta_z = other_attrs
+        attrs = VFPAttributes(nslds=nslds,
+                              thicknesses=thicknesses,
+                              roughnesses=roughnesses,
+                              islds=islds,
+                              mslds=mslds,
+                              spin_state=spin_state,
+                              orientation=orientation,
+                              demaglocs=demaglocs,
+                              demagwidths=demagwidths,
+                              sld_constraint=sld_constraint,
+                              max_delta_z=max_delta_z,
+                              conformal=conformal,
+                              name=name)    
+        return attrs
+    
     @property
     @abstractmethod
     def vfp_attrs(self) -> VFPAttributes:
@@ -477,18 +515,6 @@ class BaseVFP(ABC):
         NotImplementedError
         """
         raise NotImplementedError
-    
-    def _remove_duplicate_pars(self, par_map: map) -> list[list[ParameterLike]]:
-        """
-        Removes any duplicate parameters in a given list of Parameters.
-        """
-        non_dup_par_lists = []
-        for par_list in par_map:
-            ndup_par_list = [
-                par for i, par in enumerate(par_list) if par not in par_list[:i]
-            ]
-            non_dup_par_lists.append(ndup_par_list)
-        return non_dup_par_lists
 
 
 def check_init_input(thicknesses: tuple[ParameterLike] | list[ParameterLike], 
@@ -529,7 +555,8 @@ def check_init_input(thicknesses: tuple[ParameterLike] | list[ParameterLike],
                 the number of thickness parameters."""
         )
     
-    if any([rough_val <= 0 for rough_val in roughnesses if not isinstance(rough_val, str)]):
+    # check roughness value below 0. Use float for compat with bumpsParameter.
+    if any([float(rough_val) <= 0 for rough_val in roughnesses if not isinstance(rough_val, str)]):
         raise ValueError(f'Roughness parameters must be > 0 ')
 
     if len(nslds) != len(thicknesses) + 1:
@@ -541,7 +568,8 @@ def check_init_input(thicknesses: tuple[ParameterLike] | list[ParameterLike],
     # init a list of where conformal interfaces are:
     conformal = []
     for roughness in roughnesses:
-        if isinstance(roughness, (float, int, str, ParameterLike)):
+        # cannot use a type alias in isinstance so use its value attr
+        if isinstance(roughness, (str, ParameterLike.__value__)):
             if isinstance(roughness, str) and roughness == "conformal":
                 conformal.append(1)
 
@@ -582,7 +610,8 @@ def check_init_input(thicknesses: tuple[ParameterLike] | list[ParameterLike],
         mslds = [0] * (len(thicknesses) + 1)
     
     # now check for any non-zero values in list.
-    if any([msld > 0 for msld in mslds]):
+    # Use float for compat with bumpsParameter.
+    if any([float(msld) > 0 for msld in mslds]):
         if spin_state == 'none':
             raise ValueError("If mslds is defined, the spin state passed to the VFP must be 'up' or 'down'.")
 
@@ -597,7 +626,7 @@ def check_init_input(thicknesses: tuple[ParameterLike] | list[ParameterLike],
         raise ValueError("The number of supplied nuclear, magnetic and imaginary SLD values must be the same.")
 
     # Simple warning on max_delta_z being too low.
-    if any((rough < 2 * max_delta_z for rough in roughnesses_alt if rough is not None)):
+    if any((float(rough) < 2 * max_delta_z for rough in roughnesses_alt if rough is not None)):
         warnings.warn(
         "The microslice thickness is less than twice some of the"
         " roughness parameters. Consider reducing the max_delta_z of the VFP."
