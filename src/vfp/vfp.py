@@ -312,8 +312,11 @@ if HAS_REFNX:
                 name=self.name
             )
             
-            # get all attrs of parent.
-            super().__init__()
+            # Init Component and get attrs in self.
+            Component.__init__(self)
+            
+            # init BaseVFP and get attrs in self.
+            BaseVFP.__init__(self)
         
         @property
         def vfp_attrs(self) -> VFPAttributes:
@@ -675,8 +678,11 @@ if HAS_REFL1D:
                 name=self.name
             )
             
-            # get all attrs of parent.
-            super().__init__()
+            # Init Layer and get attrs in self.
+            Layer.__init__(self)
+            
+            # init BaseVFP and get attrs in self.
+            BaseVFP.__init__(self)
             
             # refl1d needs total thickness of the vfp as attr
             # at the beginning and throughout fitting.
@@ -724,7 +730,7 @@ if HAS_REFL1D:
             >>> refl1d_vfp.vfp_attrs.roughnesses[1].bounds
             (1, 4)
             """
-            # TODO: how can I get this to work with scipy.stats.distributions?
+            # TODO: how can I get this to work with scipy.stats distributions?
             
             # take parameters from vfp_attrs as parameters property
             # is built from vfp_attrs. Take shallow copy, which will
