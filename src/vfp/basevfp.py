@@ -287,7 +287,7 @@ class BaseVFP(ABC):
 
         return reduced_VFP, reduced_magcomp
 
-    def z_and_sld_scatter(
+    def z_and_sld(
         self, 
         reduced: bool = True
     ) -> tuple[np.ndarray, np.ndarray]:

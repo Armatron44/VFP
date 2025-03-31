@@ -120,7 +120,7 @@ def model_plot(
     if microslice:
         z, all_slds = _gen_sld_profile(vfp)
     else:
-        z, all_slds = vfp.z_and_sld_scatter()
+        z, all_slds = vfp.z_and_sld()
     
     ss_condition = vfp.vfp_attrs.spin_state if total_sld else "none"
 
@@ -147,7 +147,7 @@ def model_plot(
 
     # ax[1] - Volume fractions
     vfs = vfp.vfs_for_display()[0]
-    z = vfp.z_and_sld_scatter()[0]
+    z = vfp.z_and_sld()[0]
 
     if vfp.vfp_attrs.orientation == "front":
         for i, j in enumerate(vfs):
