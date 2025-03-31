@@ -380,7 +380,7 @@ class BaseVFP(ABC):
         matplotlib.figure.Figure, np.ndarray[matplotlib.axes._axes.Axes]
     ]:
         """
-        Produces a three axis figure on the same x axis.
+        Produces a three axis figure to visualise the VFP.
         
         Top plot = nsld / msld / isld
         Middle plot = volume fraction profiles
