@@ -104,8 +104,20 @@ class BaseVFP(ABC):
         # convert to tuple for caching.
         self.zeds = self._arrtotuple(zeds)
         
+        all_slds = self.get_slds()
+        
+        # total the nuclear and magnetic SLDs on given contrast.
+        if self.vfp_attrs.spin_state == "none":
+            coh_sld = all_slds[0]
+        elif self.vfp_attrs.spin_state == "down":
+            coh_sld = all_slds[0] - all_slds[2]
+        elif self.vfp_attrs.spin_state == "up":
+            coh_sld = all_slds[0] + all_slds[2]
+        
+        i_sld = all_slds[1] # and imginary
+        
         # get the combined nuclear+/-magnetic SLDs (coherent) and the imaginary SLDs.
-        slds_micro, islds_micro = self.get_slds()
+        # slds_micro, islds_micro = self.get_slds()
 
         # get the thickness of each microslab.
         # uses caching and tuples defined above.
@@ -118,8 +130,8 @@ class BaseVFP(ABC):
 
         # get the average between each coherent and imaginary SLD value.
         average_slds, average_islds = (
-            0.5 * np.diff(slds) + slds[:-1] for slds in [slds_micro, 
-                                                         islds_micro]
+            0.5 * np.diff(slds) + slds[:-1] for slds in [coh_sld, 
+                                                         i_sld]
         )
 
         # init arrays for final SLDs.
@@ -133,20 +145,21 @@ class BaseVFP(ABC):
             return_slds[:-1] = return_slds[:-1] * average_slds
             return_islds[:-1] = return_islds[:-1] * average_islds
             # now set the final sld value to those from the micro arrays.
-            return_slds[-1] = slds_micro[-1]
-            return_islds[-1] = islds_micro[-1]
+            return_slds[-1] = coh_sld[-1]
+            return_islds[-1] = i_sld[-1]
 
         elif self.vfp_attrs.orientation == "back":
             # do the same but backwards for back orientations.
             return_slds[1:] = return_slds[1:] * average_slds[::-1]
             return_islds[1:] = return_islds[1:] * average_islds[::-1]
             # now set the final sld value to those from the micro arrays.
-            return_slds[0] = slds_micro[-1]
-            return_islds[0] = islds_micro[-1]
+            return_slds[0] = coh_sld[-1]
+            return_islds[0] = i_sld[-1]
 
         return return_slds, return_islds, self.dz
-
-    def get_slds(self) -> tuple[np.ndarray, np.ndarray]:
+    
+    def get_slds(self,
+                 reduced: bool = True) -> np.ndarray:
         """
         Calculate slds via generation of VFP.
 
@@ -155,12 +168,16 @@ class BaseVFP(ABC):
         a coherent slds (nuclear or nuclear +/- magnetic dependent on 
         `self.spin_state`) and imaginary slds.
 
+        Parameters
+        ----------
+        reduced : bool
+            If True/False, calculates the reduced/full SLD profiles
+        
         Returns
         -------
         np.ndarray
-            coherent slds (nuclear or nuclear +/- magnetic) (1d).
-        np.ndarray
-            imaginary slds (1d).
+            Three sld contributions across three rows as function of
+            `self.zeds`. Coherent sld, imaginary sld, magnetic sld.
         """
 
         # calculate the volume fraction profiles of the layers in the interface.
@@ -170,7 +187,7 @@ class BaseVFP(ABC):
 
         # using vfp from the above function,
         # calculate reduced volume fraction and magnetic profiles.
-        self.red_vfp, self.demagf, idx, _ = init_demag(
+        red_vfp, red_demag_vfp, idx, demag_arr = init_demag(
             self.tup_demag_locs,
             self.tup_demag_widths,
             self.tup_mslds,
@@ -179,24 +196,20 @@ class BaseVFP(ABC):
         )
 
         self.indices = self._arrtotuple(idx)
-
-        # calculate the SLD valus across reduced VFPs.
-        all_slds = self.calc_slds()
+        """Where volume fraction values are approximately invariant."""
         
-        # now total the nuclear and magnetic SLDs on given contrast.
-        # tot sld must either be addition or subtraction.
-        if self.vfp_attrs.spin_state == "none":
-            tot_sld = all_slds[0]
-        elif self.vfp_attrs.spin_state == "down":
-            tot_sld = all_slds[0] - all_slds[2]
-        elif self.vfp_attrs.spin_state == "up":
-            tot_sld = all_slds[0] + all_slds[2]
+        # calculate the SLD values across reduced or full vfp:
+        if reduced:
+            all_slds = self.calc_slds(red_vfp, red_demag_vfp)
+        else:
+            all_slds = self.calc_slds(self.vfp, self.vfp * demag_arr)
 
-        return tot_sld, all_slds[1]
+        return all_slds
 
     def calc_slds(
-        self, 
-        reduced: bool = True
+        self,
+        p_vfp: np.ndarray,
+        demag_vfp: np.ndarray,
     ) -> np.ndarray:
         """
         Calculates coherent and imaginary slds.
@@ -206,15 +219,16 @@ class BaseVFP(ABC):
 
         Parameters
         ----------
-        reduced : bool
-            If True/False, calculates the reduced/full SLD profiles
+        p_vfp : np.ndarray
+            Possibly reduced vfp, else full vfp.
+        demag_vfp : np.ndarray
+            Possibly reduced demag_vfp.
 
         Returns
         -------
         np.ndarray
             Three sld contributions across three rows as function of
-            `self.zeds`. Coherent sld, imaginary sld, magnetic sld. 
-            Shape = (3, z.size)
+            `self.zeds`. Nuclear sld, imaginary sld, magnetic sld.
         """
         # if sld_constraint is not None, update self.nucSLDs depending on constraint.
         if self.vfp_attrs.sld_constraint:
@@ -230,8 +244,6 @@ class BaseVFP(ABC):
             # which returns an idx for modifying a particular SLD value.
             layer_loc, sld = self.vfp_attrs.sld_constraint(integrals)
             self.vfp_attrs.nslds[layer_loc] = sld
-
-        demagf = self.demagf if reduced else self.vfs_for_display()[2]
         
         # get float values from the Parameters in the attrs arrays.
         sld_values = [sld_pars.astype(float) for sld_pars in [self.vfp_attrs.nslds,
@@ -240,12 +252,12 @@ class BaseVFP(ABC):
         
         # calc nuclear_slds from red_vfps:
         nuc_and_i_slds = [
-            self.red_vfp.T * sld_val for sld_val in [sld_values[0], 
-                                                     sld_values[2]]
+            p_vfp.T * sld_val for sld_val in [sld_values[0], 
+                                              sld_values[2]]
         ]
 
         # calc magnetic_slds
-        sldm_layers = demagf.T * sld_values[1]
+        sldm_layers = demag_vfp.T * sld_values[1]
         
         slds_over_z = [
             np.sum(arr, axis=1) for arr in nuc_and_i_slds + [sldm_layers]
@@ -255,43 +267,48 @@ class BaseVFP(ABC):
 
         return sum_slds
 
-    def vfs_for_display(self) -> tuple[np.ndarray, np.ndarray]:
+    def vfs_for_display(self,
+                        reduced: bool = True) -> tuple[np.ndarray, np.ndarray]:
         """
-        Get volume fraction profile for plotting
-        
-        Function useful for plotting:
-        1. Reduced VF profile (defines nuclear SLD profile)
-        2. Reduced magnetic composition profile (defines magnetic SLD profile)
+        Get volume fraction profile for plotting.
 
         Returns
         -------
-        reduced_VFP : np.array
-            Shape = (Nlayers, len(z) - len(self.indices))
-        reduced_magcomp : np.array
-            Shape = (Nlayers, len(z) - len(self.indices))
+        np.array
+            vfp (reduced or full).
+        np.array
+            magnetic vfp after demag_f applied (reduced or full).
         """
         # update the model. Captures instances where parameters have changed.
         self.process_model()
 
-        reduced_VFP, reduced_magcomp, _, _ = init_demag(
+        red_vfp, red_demag_vfp, _, demag_arr = init_demag(
             self.tup_demag_locs,
             self.tup_demag_widths,
             self.tup_mslds,
             self.zeds,
             self._arrtotuple(self.vfp),
         )
+        
+        if reduced:
+            p_vfp = red_vfp
+            demag_vfp = red_demag_vfp
+        else:
+            p_vfp = self.vfp
+            demag_vfp = self.vfp * demag_arr
 
         if self.vfp_attrs.orientation == "back":
-            reduced_VFP = reduced_VFP[::-1] # reverse order.
-            reduced_magcomp = reduced_magcomp[::-1]
+            p_vfp = p_vfp[::-1] # reverse order.
+            demag_vfp = demag_vfp[::-1]
 
-        return reduced_VFP, reduced_magcomp
+        return p_vfp, demag_vfp
 
     def z_and_sld(
         self, 
         reduced: bool = True
     ) -> tuple[np.ndarray, np.ndarray]:
         """
+        TODO: make this a named tuple return?
         Plot slds calculated from the VFP.
         
         Returns z values from self.calc_zeds() and also returns
@@ -310,24 +327,19 @@ class BaseVFP(ABC):
             slds (2d), coherent, imaginary, magnetic. Either reduced or full.
         """
         self.process_model() # update the model.
-        zeds = np.array(self.zeds)
+        z = np.array(self.zeds)
         if self.vfp_attrs.orientation == "front":
+            slds = self.get_slds(reduced=reduced)
             if reduced:
-                slds = self.calc_slds()
-                z = np.delete(zeds, self.indices)
-            else:
-                slds = self.calc_slds(reduced=False)
-                z = zeds
+                z = np.delete(z, self.indices)
 
         # if reverse orientation, subtract length of inteface & flip.
         if self.vfp_attrs.orientation == "back":
+            slds = self.get_slds(reduced=reduced)
             offset = np.sum(self.tup_thicks)
+            z = -(z - offset)
             if reduced:
-                slds = self.calc_slds()
-                z = -(np.delete(zeds, self.indices) - offset)
-            else:
-                slds = self.calc_slds(reduced=False)
-                z = -(zeds - offset)
+                z = -(np.delete(z, self.indices) - offset)
 
         return z, slds
 
