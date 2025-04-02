@@ -351,7 +351,7 @@ def _gen_sld_profile(
         a 2D array of slds in order of sldn, sldi, sldm.
     """
     # grab the original nSLD and mSLDs
-    slds = vfp.calc_slds()
+    slds = vfp.get_slds()
 
     # get the average between each nuclear and magnetic SLD value.
     av_slds = [
