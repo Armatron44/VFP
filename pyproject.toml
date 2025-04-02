@@ -9,9 +9,9 @@ readme = "README.md"
 packages = [{include = "vfp", from="src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.11, <4.0"
+python = ">=3.12, <4.0"
 matplotlib = ">=3.10.0"
-numpy = ">=2.2"
+numpy = ">=2.1"
 scipy = ">=1.14"
 
 [tool.poetry.group.dev.dependencies]
@@ -31,8 +31,12 @@ sphinx-math-dollar = "^1.2.1"
 refnx = {version = ">=0.1.51", optional = true}
 
 [tool.poetry.group.refl1d.dependencies]
-refl1d = {version = "^0.8.16", optional = true}
-bumps = {version = "^0.9.3", optional = true}
+# installed bumps and refl1d via:
+# pip install git+https://github.com/bumps/bumps.git@v1.0.0a15 - I cannot get poetry to do this?
+# bumps = {git = "https://github.com/bumps/bumps.git", tag = "v1.0.0a15", optional = true}
+# refl1d = {git = "https://github.com/reflectometry/refl1d.git", tag = "v1.0.0a16", optional = true}
+# refl1d = {version = "^0.8.16", optional = true}
+# bumps = {version = "^0.9.3", optional = true}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
