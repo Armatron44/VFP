@@ -122,7 +122,7 @@ second_lay_e7 = (1-f0_st1t2) - (fronting_e7 + first_lay_e7)
 third_lay_e7 = (1-f0_st1t2t3) - (fronting_e7 + first_lay_e7 + second_lay_e7)
 backing_e7 = 1 - np.sum((fronting_e7, first_lay_e7, second_lay_e7, third_lay_e7), axis=0)
 
-standard_examples_conf_orientation = [
+standard_examples_conformal = [
     (
         (3, 2, 4, 1.5),
         np.vstack((fronting, first_lay_e0, second_lay_e0, third_lay_e0, backing_e0)) 
@@ -157,7 +157,7 @@ standard_examples_conf_orientation = [
     ),
 ]
 
-@pytest.mark.parametrize("roughnesses, expected_result", standard_examples_conf_orientation)
+@pytest.mark.parametrize("roughnesses, expected_result", standard_examples_conformal)
 def test_vfps_conformal(roughnesses: list[ParameterLike | str],
                         expected_result: np.ndarray):
     """
@@ -184,3 +184,119 @@ def test_vfps_conformal(roughnesses: list[ParameterLike | str],
     # check vfp attr is the same expected result
     for v in [vfp, refnx_vfp, refl1d_vfp]:
         np.testing.assert_allclose(v.vfp, expected_result, atol=EPS)
+
+# test orientation option gives correct SLD profile for simple model
+# and a model with conformal interface.
+start = -17 # -5 - (4 * 3) = -17 
+end = 37 # 5 + (0 + 20) + 4 * 4.5 = 37
+z = np.linspace(start, end, int((end - start) / 0.5) + 1)
+fronting_sld = (1 - norm.cdf(z, loc=0, scale=3)) * 0
+fronting_msld = (1 - norm.cdf(z, loc=0, scale=3)) * 0
+fronting_isld = (1 - norm.cdf(z, loc=0, scale=3)) * 0
+first_lay_sld = 3 * (
+    norm.cdf(z, loc=0, scale=3) * (1-norm.cdf(z, loc=20, scale=2)) 
+)
+first_lay_msld = 0 * (
+    norm.cdf(z, loc=0, scale=3) * (1-norm.cdf(z, loc=20, scale=2)) 
+)
+first_lay_isld = 0 * (
+    norm.cdf(z, loc=0, scale=3) * (1-norm.cdf(z, loc=20, scale=2)) 
+)
+backing_sld = 4.5 * (
+    norm.cdf(z, loc=0, scale=3) * norm.cdf(z, loc=20, scale=2)
+)
+backing_msld = 0 * (
+    norm.cdf(z, loc=0, scale=3) * norm.cdf(z, loc=20, scale=2)
+)
+backing_isld = 0 * (
+    norm.cdf(z, loc=0, scale=3) * norm.cdf(z, loc=20, scale=2)
+)
+standard_examples_orientation = [
+    (   
+        (0, 3, 4.5), # nslds
+        (0, 20), # thicknesses
+        (3, 2), # roughnesses
+        'front', # orientation
+        (0, 0, 0), # msld
+        (0, 0, 0), # isld
+        'none',
+        np.vstack(
+            (
+                z,
+                np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
+                np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
+                np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0)
+            )
+        ) 
+    ),
+    (   
+        (0, 3, 4.5), # nslds
+        (0, 20), # thicknesses
+        (3, 2), # roughnesses
+        'back', # orientation
+        (0, 0, 0), # msld
+        (0, 0, 0), # isld
+        'none',
+        np.vstack(
+            (
+                -(z - (0+20)), # orientation = back whens last interface is 0 & then flip.
+                np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
+                np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
+                np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0)
+            )
+        ) 
+    )
+]
+@pytest.mark.parametrize("slds, thicknesses, roughnesses, orientation, msld, isld, spin_state, expected_result", standard_examples_orientation)
+def test_slds_orientation(
+    slds: tuple, 
+    thicknesses: tuple, 
+    roughnesses: tuple,
+    orientation: str,
+    msld: tuple,
+    isld: tuple,
+    spin_state: str,
+    expected_result: np.ndarray):
+    vfp = VFP(nslds=slds, 
+              thicknesses=thicknesses, 
+              roughnesses=roughnesses,
+              orientation=orientation,
+              mslds=msld,
+              islds=isld,
+              spin_state=spin_state)
+    refnx_vfp = refnxVFP(nslds=slds,
+                         thicknesses=thicknesses,
+                         roughnesses=roughnesses,
+                         orientation=orientation,
+                         mslds=msld,
+                         islds=isld,
+                         spin_state=spin_state)
+    refl1d_vfp = refl1dVFP(nslds=slds,
+                           thicknesses=thicknesses,
+                           roughnesses=roughnesses,
+                           orientation=orientation,
+                           mslds=msld,
+                           islds=isld,
+                           spin_state=spin_state)
+    
+    np.testing.assert_allclose(vfp.z_and_sld(reduced=False)[1], refnx_vfp.z_and_sld(reduced=False)[1])
+    np.testing.assert_allclose(vfp.z_and_sld(reduced=False)[1], refl1d_vfp.z_and_sld(reduced=False)[1])
+    np.testing.assert_allclose(refnx_vfp.z_and_sld(reduced=False)[1], refl1d_vfp.z_and_sld(reduced=False)[1])
+
+    # check vfp attr is the same expected result
+    for v in [vfp, refnx_vfp, refl1d_vfp]:
+        np.testing.assert_allclose(v.z_and_sld(reduced=False)[0], expected_result[0], atol=EPS)
+        np.testing.assert_allclose(v.z_and_sld(reduced=False)[1], expected_result[1:], atol=EPS)
+        
+# def test_mslds():
+    
+# def test_islds():
+    
+# # explicit BaseVFP methods
+# def test_sld_offset()
+
+# def test_tuple_pars()
+
+# def test_arrtotuple()
+
+# def test_z_and_sld()
