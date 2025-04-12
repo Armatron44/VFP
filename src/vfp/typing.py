@@ -1,7 +1,8 @@
 """
-Setup to define a type alias `ParameterLike` which is conditional
-on the available dependencies to `vfp`. `ParameterLike` is the union
-of float, int, refnxParameter, _BinaryOp, bumpsParameter & Expression 
+Define a type alias `ParameterLike` which is conditional on the available
+dependencies to `vfp`. `ParameterLike` is the union of `float`, `int`,
+`refnx.analysis.Parameter`, `refnx.analysis.parameter._BinaryOp`,
+`bumps.parameter.Parameter` & `bumps.parameter.Expression`
 """
 
 # not clean but the following appears to work with refl1d + refnx present.
