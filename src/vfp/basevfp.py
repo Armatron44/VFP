@@ -18,8 +18,7 @@ from vfp.typing import ParameterLike
 @dataclass
 class VFPAttributes:
     """
-    A dataclass to hold reference to the attributes of child classes that inherit BaseVFP.
-    These attributes are set by the __init__ method of a VFP class.
+    A dataclass to hold reference to the attributes of child classes that inherit `BaseVFP`.
     The parameters held here can be updated by fitters and samplers.
     """
     nslds: np.ndarray
@@ -41,7 +40,7 @@ class BaseVFP(ABC):
     """
     Handles common functions of VFP.
     
-    Process is the main function.
+    `process_model` is the main function.
     """
     def __init__(self) -> None:
         # create vfp model.
@@ -49,9 +48,9 @@ class BaseVFP(ABC):
 
     def __repr__(self) -> str:
         """
-        Returns simple string description of the VFP.
+        Simple string description of the VFP.
         
-        Currently not called by refnxVFP or refl1dVFP.
+        Currently not called by `refnxVFP` or `refl1dVFP`.
 
         Returns
         -------
@@ -75,12 +74,12 @@ class BaseVFP(ABC):
     def process_model(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculates the thickness and sld of microslices.
-        
-        Main function of the `BaseVFP`.
-        Calculates the length of the VFP, the thicknesses of each microslice
-        and calculates the sld of each microslice.
-        Returns the coherent and imaginary sld values for each microslice and
-        the thickness of each microslice given orientation of sample.
+
+        Main function of the `BaseVFP`. Calculates the length of the VFP,
+        the thicknesses of each microslice and calculates the sld of each
+        microslice. Returns the coherent and imaginary sld values for
+        each microslice and the thickness of each microslice given orientation
+        of sample.
 
         Returns
         -------
@@ -94,15 +93,20 @@ class BaseVFP(ABC):
             microslice thicknesses.
             Shape = zeds.size - self.indices
         """
-        # update tuple variants of parameters.
+        # update tuple variants of some vfp attrs.
         self._tuple_pars()
 
         # calc z spectrum
-        zeds = calc_zeds(self.tup_roughs, self.tup_thicks, self.vfp_attrs.max_delta_z)
+        zeds = calc_zeds(
+            self.tup_roughs,
+            self.tup_thicks,
+            self.vfp_attrs.max_delta_z
+        )
+        
         zstart, zend, points = zeds[0], zeds[-1], zeds.size
 
-        # convert to tuple for caching.
         self.zeds = self._arrtotuple(zeds)
+        "z space of interface as tuple for caching."
         
         all_slds = self.get_slds()
         
@@ -114,21 +118,18 @@ class BaseVFP(ABC):
         elif self.vfp_attrs.spin_state == "up":
             coh_sld = all_slds[0] + all_slds[2]
         
-        i_sld = all_slds[1] # and imginary
-        
-        # get the combined nuclear+/-magnetic SLDs (coherent) and the imaginary SLDs.
-        # slds_micro, islds_micro = self.get_slds()
+        # and imaginary
+        i_sld = all_slds[1]
 
-        # get the thickness of each microslab.
-        # uses caching and tuples defined above.
         self.dz = calc_dzs(zstart, zend, points, self.indices)
+        "The thickness of each microslab"
 
-        # if VFP.orientation = back --> slabs will have same thickness,
+        # when orientation = back, slabs will have same thickness as front,
         # just in reverse order
         if self.vfp_attrs.orientation == "back":
             self.dz = self.dz[::-1]
 
-        # get the average between each coherent and imaginary SLD value.
+        # get the average between each coherent and imaginary sld value.
         average_slds, average_islds = (
             0.5 * np.diff(slds) + slds[:-1] for slds in [coh_sld, 
                                                          i_sld]
@@ -161,9 +162,9 @@ class BaseVFP(ABC):
     def get_slds(self,
                  reduced: bool = True) -> np.ndarray:
         """
-        Calculate slds via generation of VFP.
+        Calculate slds via generation of volume fraction profile.
 
-        Initially, the VFP is calculated, then it is reduced via
+        Initially, the vol fraction profile is calculated, then it is reduced via
         `self.init_demag`. slds are calculated and then summed to give
         a coherent slds (nuclear or nuclear +/- magnetic dependent on 
         `self.spin_state`) and imaginary slds.
@@ -185,7 +186,6 @@ class BaseVFP(ABC):
             self.tup_roughs, self.tup_thicks, self.zeds, tuple(self.vfp_attrs.conformal)
         )
 
-        # using vfp from the above function,
         # calculate reduced volume fraction and magnetic profiles.
         red_vfp, red_demag_vfp, idx, demag_arr = init_demag(
             self.tup_demag_locs,
@@ -196,7 +196,8 @@ class BaseVFP(ABC):
         )
 
         self.indices = self._arrtotuple(idx)
-        """Where volume fraction values are approximately invariant."""
+        """Tuple version of arr where volume fraction values are
+           approximately invariant."""
         
         # calculate the SLD values across reduced or full vfp:
         if reduced:
@@ -214,7 +215,7 @@ class BaseVFP(ABC):
         """
         Calculates coherent and imaginary slds.
         
-        Slds are nuc, mag and imaginary.
+        Slds are nuclear, imaginary and magnetic.
         Can be calculated with reduced or full VFP.
 
         Parameters
@@ -230,20 +231,20 @@ class BaseVFP(ABC):
             Three sld contributions across three rows as function of
             `self.zeds`. Nuclear sld, imaginary sld, magnetic sld.
         """
-        # if sld_constraint is not None, update self.nucSLDs depending on constraint.
+        # possibly update nslds depending on user supplied constraint class.
         if self.vfp_attrs.sld_constraint:
             layer_indices = self.vfp_attrs.sld_constraint.layer_choices()
             
             integrals = integrate_vfp(
                 self.zeds,
                 self.indices,
-                self._arrtotuple(self.red_vfp),
+                self._arrtotuple(p_vfp),
                 tuple(layer_indices)
             )
             # user defines a class with a callable,
             # which returns an idx for modifying a particular SLD value.
             layer_loc, sld = self.vfp_attrs.sld_constraint(integrals)
-            self.vfp_attrs.nslds[layer_loc] = sld
+            self.vfp_attrs.nslds[layer_loc] = sld # update
         
         # get float values from the Parameters in the attrs arrays.
         sld_values = [sld_pars.astype(float) for sld_pars in [self.vfp_attrs.nslds,
@@ -259,9 +260,11 @@ class BaseVFP(ABC):
         # calc magnetic_slds
         sldm_layers = demag_vfp.T * sld_values[1]
         
+        # sum slds over all layers.
         slds_over_z = [
             np.sum(arr, axis=1) for arr in nuc_and_i_slds + [sldm_layers]
         ]
+        
         # row 0 = nsld, row 1 = isld, row 2 = msld
         sum_slds = np.vstack(slds_over_z)
 
@@ -271,6 +274,11 @@ class BaseVFP(ABC):
                         reduced: bool = True) -> tuple[np.ndarray, np.ndarray]:
         """
         Get volume fraction profile for plotting.
+        
+        Parameters
+        ----------
+        reduced: bool, optional
+            Flag to return reduced vfp. If False, get non-reduced vfp.
 
         Returns
         -------
@@ -308,15 +316,14 @@ class BaseVFP(ABC):
         reduced: bool = True
     ) -> tuple[np.ndarray, np.ndarray]:
         """
-        TODO: make this a named tuple return?
-        Plot slds calculated from the VFP.
+        Get z and sld values from vfp for plotting.
         
-        Returns z values from self.calc_zeds() and also returns
-        sld values from self.calc_slds() calculated from the VFP.
+        Returns z values from `self.zeds` and also returns
+        sld values from `self.get_slds` calculated from the VFP.
 
         Parameters
         ----------
-        reduced : Boolean
+        reduced : bool
             If False/True, will return full/reduced zs and slds.
 
         Returns
@@ -345,15 +352,28 @@ class BaseVFP(ABC):
 
     def sld_offset(self) -> float:
         """
-        Offset to apply to sld profile to set at appropriate z coordinate.
-
-        Add the return value to the z values of the sld profile to set the
-        sld profile to the correct location.
+        Float to add to refnx or refl1d sld profile z coordinate.
 
         Returns
         -------
         float
             Offset to add to z values of an sld_profile.
+        
+        Examples
+        --------
+        >>> import numpy as np
+        >>> import matplotlib.pyplot as plt
+        >>> from vfp import refnxVFP
+        >>> from refnx.reflect import ReflectModel, SLD
+        >>> thicknesses = (0, 20, 30)
+        >>> roughnesses = (2, 4, 6)
+        >>> slds = (2.07, 3.47, 0.21, 6.37)
+        >>> refnx_vfp = refnxVFP(slds, thicknesses, roughnesses)
+        >>> struc = SLD(2.07, name='Si') | refnx_vfp | SLD(6.37, name='D2O')
+        >>> model = ReflectModel(struc)
+        >>> z, sld = model.structure.sld_profile(max_delta_z=0.1)
+        >>> plt.plot(z+refnx_vfp.sld_offset(), sld)
+        >>> plt.show()
         """
         # update the model. Captures instances where parameters have changed.
         self.process_model()
@@ -389,7 +409,8 @@ class BaseVFP(ABC):
         total_sld: bool = False,
         total_vf: bool = True,
     ) -> tuple[
-        matplotlib.figure.Figure, np.ndarray[matplotlib.axes._axes.Axes]
+        matplotlib.figure.Figure, 
+        np.ndarray[matplotlib.axes._axes.Axes]
     ]:
         """
         Produces a three axis figure to visualise the VFP.
@@ -402,12 +423,12 @@ class BaseVFP(ABC):
         ----------
         points : integer
             Number of points to simulate across the surfaces.
-        microslice_sld : boolean
+        microslice_sld : bool
             If True, will return SLD profiles after microslicing the profile.
-        total_sld : boolean
-            If True, will return SLD+ or SLD- profiles. If false, the SLDn and SLDm parts
-            will be plotted seperately.
-        total_vf : boolean
+        total_sld : bool
+            If True, will return SLD+ or SLD- profiles.
+            If False, the SLDn and SLDm parts will be plotted seperately.
+        total_vf : bool
             If True, will plot the sum of all layers' volume fractions.
 
         Returns
@@ -415,7 +436,6 @@ class BaseVFP(ABC):
         fig, ax
             matplotlib.pyplot figure and axes objects.
         """
-
         # update the model. Captures instances where parameters have changed.
         self.process_model()
 
@@ -443,15 +463,22 @@ class BaseVFP(ABC):
             float(par) if par is not None else 1 for par in self.vfp_attrs.roughnesses
         )
 
-    def _arrtotuple(self, arr: np.ndarray) -> tuple:
+    def _arrtotuple(
+        self, 
+        arr: np.ndarray
+    ) -> tuple[float, ...] | tuple[tuple[float, ...]]:
         """
-        Takes 1D/2D arrays and returns a tuple/nested tuple
-        for the purposes of caching.
+        Convert arrays to tuples for caching.
 
         Parameters
         ----------
         arr : np.ndarray
             Array to convert to tuples.
+        
+        Returns
+        -------
+        tuple[float, ...] | tuple[tuple[float, ...]]
+            tuple or nested tuple of floats.
         """
         if arr.ndim == 1:
             return tuple(val for val in arr)
@@ -475,7 +502,11 @@ class BaseVFP(ABC):
         name: str
     ) -> VFPAttributes:
         """
-        Setup object to hold reference to input parameters.
+        Inits a `VFPAttributes` to hold reference to child VFP input parameters.
+        
+        Returns
+        -------
+        VFPAttributes
         """
         thicknesses, roughnesses, nslds, islds, mslds, demaglocs, demagwidths, conformal = list(map(np.array, arr_attrs))
         orientation, spin_state, sld_constraint, max_delta_z = other_attrs
@@ -498,7 +529,7 @@ class BaseVFP(ABC):
     @abstractmethod
     def vfp_attrs(self) -> VFPAttributes:
         """
-        Abstract property to implement in a child of BaseVFP to use the VFPAttribute dataclass.
+        Abstract property to implement in a child of `BaseVFP` to use the VFPAttribute dataclass.
         """
         raise NotImplementedError
     
@@ -519,7 +550,7 @@ class BaseVFP(ABC):
     @abstractmethod
     def _createparam(self):
         """
-        Abstract method that should be implemented to return ParameterLike
+        Abstract method that should be implemented to return `ParameterLike`
         objects for fitting software. Not required for standard VFP.
 
         Raises
