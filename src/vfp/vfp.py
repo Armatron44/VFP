@@ -226,7 +226,7 @@ class VFP(BaseVFP):
             Transformed version of VFP.
         """
         if wanted_vfp not in ['refnx', 'refl1d']:
-            raise ValueError(f'vfp_type must be either "refnx" or "refl1d".')
+            raise ValueError('vfp_type must be either "refnx" or "refl1d".')
 
         transformed_vfp = init_specific_VFP(self, wanted_vfp, self.vfp_attrs.__dict__)    
         return transformed_vfp
@@ -378,13 +378,13 @@ if HAS_REFNX:
             prior: dict[str, dict[int, tuple[float, float] | PDF | Interval]]
             ) -> None:
             """
-            Set bounds on refnxParameters in `self.vfp_attrs`.
+            Set bounds on `refnxParameter`s in `self.vfp_attrs`.
             
             Use this function to set the prior for any parameters
             that are to be fit / sampled.
             
             The key names on the first level of the dictionary must
-            match the names of the attributes in self.vfp_attrs. The
+            match the names of the attributes in `self.vfp_attrs`. The
             key values of the second level of the dictionaries should
             match the indices of the parameters you wish to set priors for.
             
@@ -397,18 +397,19 @@ if HAS_REFNX:
             
             Example
             -------
-            >>> from vfp.vfp_refactor import refnxVFP
             >>> import scipy.stats as stats
+            >>> from vfp.vfp_refactor import refnxVFP
             >>> thicknesses = (0, 20)
             >>> roughnesses = (2, 1)
             >>> nslds = (2.07, 3.47, 6.37) # Si, SiO2, D2O
             >>> refnx_vfp = refnxVFP(nslds, thicknesses, roughnesses)
             # lets set uniform priors on the thickness and roughness of SiO2
             # and set a gaussian prior on the sld of D2O with mean 6.37 & std 0.03
-            >>> prior_dict = {'thicknesses' : {1 : (10, 30)},
-                              'roughnesses' : {1 : (1, 4)},
-                              'nslds' : {2 : PDF(stats.norm(6.37, 0.03))}
-                              }
+            >>> prior_dict = {
+            ... 'thicknesses' : {1 : (10, 30)},
+            ... 'roughnesses' : {1 : (1, 4)},
+            ... 'nslds' : {2 : PDF(stats.norm(6.37, 0.03))}
+            ... }
             >>> refnx_vfp.set_parameter_prior(prior=prior_dict)
             >>> refnx_vfp.vfp_attrs.thicknesses[1]
             Parameter(value=20.0, name='refnxVFP - thicknesses - layer 1', vary=True, bounds=Interval(lb=10.0, ub=30.0), constraint=None)
@@ -431,8 +432,10 @@ if HAS_REFNX:
 
         def slabs(self, structure: Structure | None = None) -> np.ndarray:
             """
-            Generate array representation of the refnx VFP as a 2d np.array using the
-            thicknesses, SLDs and iSLDs of the microslabs which represent the SLD profile.
+            Generate array representation of the `refnxVFP`. 
+            
+            A 2D np.array using the thicknesses, slds and islds of the
+            microslabs.
 
             Parameters
             ----------
@@ -515,7 +518,7 @@ if HAS_REFNX:
                 Transformed version of VFP.
             """
             if wanted_vfp not in ['vfp', 'refl1d']:
-                raise ValueError(f'vfp_type must be either "vfp" or "refl1d".')
+                raise ValueError('vfp_type must be either "vfp" or "refl1d".')
         
             transformed_vfp = init_specific_VFP(self, wanted_vfp, self.vfp_attrs.__dict__)
             return transformed_vfp
@@ -797,14 +800,14 @@ if HAS_REFL1D:
             extract_ps = {}
             for key, par_arr in p_arr_dict.items():
                 extract_ps[key] = []
-                for i, par in enumerate(par_arr): # don't keep duplicates in the same list.
+                for par in par_arr: # don't keep duplicates in the same list.
                     if isinstance(par, bumpsParameter):
-                        if par not in extract_ps[key][:i]:
+                        if par not in extract_ps[key]:
                             extract_ps[key].append(par)
                     elif isinstance(par, Expression):
                         ext_pars = [_p for _p in par.parameters()]
                         for _p in ext_pars:
-                            if _p not in extract_ps[key][:i]:
+                            if _p not in extract_ps[key]:
                                 extract_ps[key].append(_p)
             return extract_ps
 
@@ -885,7 +888,7 @@ if HAS_REFL1D:
                 Transformed version of VFP.
             """
             if wanted_vfp not in ['vfp', 'refnx']:
-                raise ValueError(f'vfp_type must be either "vfp" or "refnx".')
+                raise ValueError('vfp_type must be either "vfp" or "refnx".')
         
             transformed_vfp = init_specific_VFP(self, wanted_vfp, self.vfp_attrs.__dict__)
             return transformed_vfp
@@ -998,13 +1001,13 @@ def init_specific_VFP(
         if HAS_REFNX:
             target_vfp = refnxVFP
         else:
-            raise ValueError(f'Target vfp is a refnxVFP, and refnx is not an available dependency.')    
+            raise ValueError('Target vfp is a refnxVFP, and refnx is not an available dependency.')    
     
     elif vfp_type == 'refl1d':
         if HAS_REFL1D:
             target_vfp = refl1dVFP
         else:
-            raise ValueError(f'Target vfp is a refl1dVFP, and refl1d is not an available dependency.')          
+            raise ValueError('Target vfp is a refl1dVFP, and refl1d is not an available dependency.')          
     
     elif vfp_type == 'vfp':
         target_vfp = VFP
@@ -1014,7 +1017,7 @@ def init_specific_VFP(
 
     # if asked for the same type as original_vfp just return original_vfp.
     if isinstance(target_vfp, type(original_vfp)):
-        warnings.warn(f'Returning the original vfp as target is the same.')
+        warnings.warn('Returning the original vfp as target is the same.')
         return original_vfp
             
     final_vfp = target_vfp.from_transform(vfp_dict)
