@@ -43,14 +43,40 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-line-length = 79
+line-length = 78
+target-version = ['py311']
+extend-exclude = "docs/*"
+
+[tool.isort]
+py_version = 313
+profile = "black"
+line_length = 78
+extend_skip = ["docs"]
 
 [tool.ruff]
 src = ["src"]
-line-length = 79
+target-version = "py313"
+line-length = 78
 
 [tool.ruff.lint]
-ignore = ["E501"]
+select = [
+    "A",    # prevent using keywords that clobber python builtins
+    "B",    # bugbear: security warnings
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "W",    # pycodestyle
+    "N",    # pep8-naming
+    "ISC",  # implicit string concatenation
+    "UP",   # alert you when better syntax is available in your python version
+    "RUF",  # the ruff developer's own rules
+    "PLC",   # pylint
+    "PLE",   # pylint
+    "PLR",   # pylint
+    "PLW",   # pylint
+    "NPY",  # numpy
+    "DTZ",  # datetimez
+    "PLW1514", # unspecified-encoding (in preview)
+]
 
 # Exclude specific paths or files
 exclude = ["tests/"]
