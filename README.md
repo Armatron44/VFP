@@ -56,9 +56,7 @@ plt.show()
 The `vfp.refnxVFP` and `vfp.refl1dVFP` objects can be used in [refnx](https://refnx.readthedocs.io/en/latest/) and [refl1d](https://refl1d.readthedocs.io/en/latest/) respectively, e.g with refnx:
 
 ```python
-from refnx.analysis import GlobalObjective, Parameter, Objective, CurveFitter
 from refnx.reflect import ReflectModel, SLD
-from refnx.dataset import ReflectDataset
 import matplotlib.pyplot as plt
 from vfp import refnxVFP
 
