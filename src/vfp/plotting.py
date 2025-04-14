@@ -150,33 +150,22 @@ def model_plot(
     z = vfp.z_and_sld()[0]
 
     if vfp.vfp_attrs.orientation == "front":
-        for i, j in enumerate(vfs):
+        for i, lay_vfp in enumerate(vfs):
             if i == 0:
-                ax[1].plot(z, j.T, label="Fronting")
+                ax[1].plot(z, lay_vfp.T, label="Fronting")
 
             elif i + 1 == len(vfs):
-                ax[1].plot(z, j.T, label="Backing")
+                ax[1].plot(z, lay_vfp.T, label="Backing")
 
             else:
-                ax[1].plot(z, j.T, label=f"Layer {i}")
+                ax[1].plot(z, lay_vfp.T, label=f"Layer {i}")
 
     elif vfp.vfp_attrs.orientation == "back":
-        for i, j in enumerate(vfs):
+        for i, lay_vfp in enumerate(vfs):
             if i == 0:
                 ax[1].plot(
                     z,
-                    j.T,
-                    label="Backing",
-                    color=colours[
-                        (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
-                    ],
-                    zorder=len(vfp.tup_thicks) - i,
-                )
-
-            elif i + 1 == len(vfs):
-                ax[1].plot(
-                    z,
-                    j.T,
+                    lay_vfp.T,
                     label="Fronting",
                     color=colours[
                         (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
@@ -184,10 +173,21 @@ def model_plot(
                     zorder=len(vfp.tup_thicks) - i,
                 )
 
+            elif i + 1 == len(vfs):
+                ax[1].plot(
+                    z,
+                    lay_vfp.T,
+                    label="Backing",
+                    color=colours[
+                        (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
+                    ],
+                    zorder=len(vfp.tup_thicks) - i,
+                )
+
             else:
                 ax[1].plot(
                     z,
-                    j.T,
+                    lay_vfp.T,
                     label=f"Layer {len(vfs) - (i + 1)}",
                     color=colours[
                         (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
@@ -253,7 +253,7 @@ def model_plot(
                 j,
                 range(0, points),
                 marker=".",
-                color=colours[(len(vfp.tup_thicks) - 2 * i) % len(colours)],
+                color=colours[(2*len(vfp.tup_thicks) - 2 * (i+1)) % len(colours)],
                 zorder=(len(vfp.tup_thicks) + 1 + 2 * i),
             )
 
