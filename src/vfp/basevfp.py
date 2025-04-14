@@ -335,18 +335,17 @@ class BaseVFP(ABC):
         """
         self.process_model() # update the model.
         z = np.array(self.zeds)
+        # conditionally remove z at indices.
+        z = np.delete(z, self.indices) if reduced else z
+        
         if self.vfp_attrs.orientation == "front":
             slds = self.get_slds(reduced=reduced)
-            if reduced:
-                z = np.delete(z, self.indices)
 
         # if reverse orientation, subtract length of inteface & flip.
         if self.vfp_attrs.orientation == "back":
             slds = self.get_slds(reduced=reduced)
             offset = np.sum(self.tup_thicks)
             z = -(z - offset)
-            if reduced:
-                z = -(np.delete(z, self.indices) - offset)
 
         return z, slds
 
