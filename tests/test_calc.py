@@ -18,8 +18,8 @@ def init_standard_sample():
     # 4 layers + use some non-integer values.
     lot = [0, 19.7, 50, 30]
     lor = [3.1, 5, 7.3, 6]
-    nSLDs = [0, 6, 4, 3.47, 2.07]
-    mSLDs = [0, 0, 3, 0, 0]
+    nslds = [0, 6, 4, 3.47, 2.07]
+    mslds = [0, 0, 3, 0, 0]
     locs = [1, 25]
     widths = [1, 5]
     conformal = [0, 0, 0, 0]
@@ -27,8 +27,8 @@ def init_standard_sample():
     dict_res = {
         "thicks": lot,
         "roughs": lor,
-        "nSLDs": nSLDs,
-        "mSLDs": mSLDs,
+        "nslds": nslds,
+        "mslds": mslds,
         "locs": locs,
         "widths": widths,
         "conformal": conformal,
@@ -145,12 +145,12 @@ def test_init_demag():
     res = init_demag(
         locs=tuple(sample_dict["locs"]),
         widths=tuple(sample_dict["widths"]),
-        mSLDs=tuple(sample_dict["mSLDs"]),
+        mslds=tuple(sample_dict["mslds"]),
         zeds=tuple(np.linspace(-17.5, 134, 304)),
         vfp=tuple(tuple(i) for i in expected_vfp),
     )
 
-    expected_demag_arr = np.ones(shape=(len(sample_dict["mSLDs"]), 304))
+    expected_demag_arr = np.ones(shape=(len(sample_dict["mslds"]), 304))
     expected_demag_arr[2] = 1 - (
         scipy.stats.norm.cdf(np.linspace(-17.5, 134, 304), loc=1, scale=1)
         * (
