@@ -232,9 +232,8 @@ class BaseVFP(ABC):
             `self.zeds`. Nuclear sld, imaginary sld, magnetic sld.
         """
         # possibly update nslds depending on user supplied constraint class.
-        if self.vfp_attrs.sld_constraint:
+        if self.vfp_attrs.sld_constraint is not None:
             layer_indices = self.vfp_attrs.sld_constraint.layer_choices()
-            
             integrals = integrate_vfp(
                 self.zeds,
                 self.indices,
@@ -245,12 +244,12 @@ class BaseVFP(ABC):
             # which returns an idx for modifying a particular SLD value.
             layer_loc, sld = self.vfp_attrs.sld_constraint(integrals)
             self.vfp_attrs.nslds[layer_loc] = sld # update
-        
+            
         # get float values from the Parameters in the attrs arrays.
         sld_values = [sld_pars.astype(float) for sld_pars in [self.vfp_attrs.nslds,
                                                               self.vfp_attrs.mslds,
                                                               self.vfp_attrs.islds]]
-        
+
         # calc nuclear_slds from red_vfps:
         nuc_and_i_slds = [
             p_vfp.T * sld_val for sld_val in [sld_values[0], 
