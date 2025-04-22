@@ -26,6 +26,7 @@ sphinx-autoapi = "^3.4.0"
 sphinx-rtd-theme = "^3.0.2"
 deptry = "^0.23.0"
 sphinx-math-dollar = "^1.2.1"
+pathos = "^0.3.4"
 
 [tool.poetry.group.refnx.dependencies]
 refnx = {version = ">=0.1.51", optional = true}
