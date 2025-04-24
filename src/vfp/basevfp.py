@@ -30,7 +30,7 @@ class VFPAttributes:
     orientation: Literal["front", "back"]
     demaglocs: np.ndarray
     demagwidths: np.ndarray 
-    sld_constraint: None | Callable
+    sld_constraint: None | Callable[[list[float]], tuple[list[int], list[float]]]
     max_delta_z: float
     conformal: np.ndarray
     name: str
@@ -241,9 +241,10 @@ class BaseVFP(ABC):
                 tuple(layer_indices)
             )
             # user defines a class with a callable,
-            # which returns an idx for modifying a particular SLD value.
-            layer_loc, sld = self.vfp_attrs.sld_constraint(integrals)
-            self.vfp_attrs.nslds[layer_loc] = sld # update
+            # which returns a list of indices for modifying SLD values at those idxs.
+            layer_idxs, slds = self.vfp_attrs.sld_constraint(integrals)
+            for layer_idx, sld in zip(layer_idxs, slds):
+                self.vfp_attrs.nslds[layer_idx] = sld # update
             
         # get float values from the Parameters in the attrs arrays.
         sld_values = [sld_pars.astype(float) for sld_pars in [self.vfp_attrs.nslds,
@@ -403,6 +404,7 @@ class BaseVFP(ABC):
     def plot(
         self,
         points: int = 50,
+        posterior_samples: np.ndarray | None = None,
         microslice_sld: bool = True,
         total_sld: bool = False,
         total_vf: bool = True,
@@ -421,6 +423,10 @@ class BaseVFP(ABC):
         ----------
         points : integer
             Number of points to simulate across the surfaces.
+        posterior_samples : np.ndarray
+            Samples from the posterior to plot.
+            Expected shape = (nsamples, nparameters)
+            If the first axis is large (say > 300), this will take some time.
         microslice_sld : bool
             If True, will return SLD profiles after microslicing the profile.
         total_sld : bool
@@ -440,6 +446,7 @@ class BaseVFP(ABC):
         fig, ax = model_plot(
             vfp=self,
             points=points,
+            posterior_samples=posterior_samples,
             microslice=microslice_sld,
             total_sld=total_sld,
             total_vf=total_vf,
@@ -494,7 +501,7 @@ class BaseVFP(ABC):
         other_attrs: list[
             Literal['front', 'back'], 
             Literal['none', 'up', 'down'],
-            Callable | None,
+            Callable[[list[float]], tuple[list[int], list[float]]] | None,
             float
         ],
         name: str
@@ -542,6 +549,14 @@ class BaseVFP(ABC):
     def transform(self):
         """
         Abstract method to transform a VFP of one type to another.
+        """
+        raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def varying_parameters(self):
+        """
+        Abstract method to get all varying parameters in vfp.
         """
         raise NotImplementedError
     
