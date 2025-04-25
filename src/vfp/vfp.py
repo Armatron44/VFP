@@ -75,7 +75,7 @@ class VFP(BaseVFP):
         If supplied, must either be a tuple/list of an even number of ParameterLike objects.
         The parameters declare the width of a Gaussian CDF.
         Optional, defaults to None.
-    sld_constraint : Callable | None
+    sld_constraint : Callable[[list[float]], tuple[list[int], list[float]]] | None
         User defined object used to handle SLD constraints between layers.
         Optional, defaults to None.
     max_delta_z : float
@@ -114,7 +114,7 @@ class VFP(BaseVFP):
             | tuple[ParameterLike]
             | list[ParameterLike]
         ) = None,
-        sld_constraint: Callable | None = None,
+        sld_constraint: Callable[[list[float]], tuple[list[int], list[float]]] | None = None,
         max_delta_z: float = 0.5,
     ) -> None:
         self.name = "VFP"
@@ -162,14 +162,14 @@ class VFP(BaseVFP):
     @classmethod
     def from_transform(
         cls, 
-        vfp_attrs: dict[str, np.ndarray | str | float | None | Callable]
+        vfp_attrs: dict[str, np.ndarray | str | float | None | Callable[[list[float]], tuple[list[int], list[float]]]]
     ) -> VFP:
         """
         Transforms a dictionary of vfp attributes to a `VFP`.
 
         Parameters
         ----------
-        vfp_attrs : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable])
+        vfp_attrs : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable[[list[float]], tuple[list[int], list[float]]]]
             Original vfp attributes.    
 
         Returns
@@ -195,13 +195,13 @@ class VFP(BaseVFP):
         """
         Not needed for the standard VFP.
         """
-        pass
+        raise NotImplementedError
     
     def set_parameter_prior(self) -> None:
         """
         Not required for this class.
         """
-        pass
+        raise NotImplementedError
 
     def transform(
         self,
@@ -230,6 +230,13 @@ class VFP(BaseVFP):
 
         transformed_vfp = init_specific_VFP(self, wanted_vfp, self.vfp_attrs.__dict__)    
         return transformed_vfp
+    
+    @property
+    def varying_parameters(self):
+        """ 
+        Not required for this class.
+        """
+        raise NotImplementedError
 
 if HAS_REFNX:
     class refnxVFP(Component, BaseVFP):
@@ -270,7 +277,7 @@ if HAS_REFNX:
                 | tuple[ParameterLike]
                 | list[ParameterLike]
             ) = None,
-            sld_constraint: Callable | None = None,
+            sld_constraint: Callable[[list[float]], tuple[list[int], list[float]]] | None = None,
             max_delta_z: float = 0.5,
         ) -> None:
             self.name = "refnxVFP"
@@ -471,14 +478,14 @@ if HAS_REFNX:
         @classmethod
         def from_transform(
             cls, 
-            vfp_attrs: dict[str, np.ndarray | str | float | None | Callable]
+            vfp_attrs: dict[str, np.ndarray | str | float | None | Callable[[list[float]], tuple[list[int], list[float]]]]
         ) -> refnxVFP:
             """
             Transforms a dictionary of vfp attributes to a `refnxVFP`.
 
             Parameters
             ----------
-            vfp_attrs : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable])
+            vfp_attrs : dict[str, np.ndarray  |  str  |  float  |  None  | Callable[[list[float]], tuple[list[int], list[float]]]]
                 Original vfp attributes.    
 
             Returns
@@ -523,6 +530,33 @@ if HAS_REFNX:
             transformed_vfp = init_specific_VFP(self, wanted_vfp, self.vfp_attrs.__dict__)
             return transformed_vfp
         
+        @property
+        def varying_parameters(self) -> dict[str, refnxParameter]:
+            """
+            Gets parameters that vary in this refnxVFP.
+
+            Returns
+            -------
+            dict[str, refnxParameter]
+                Varying parameters of vfp.
+            """
+            self._varying_ps = {p.name : p for p in self.parameters if p.vary}
+            #self._varying_ps = [p for p in self.parameters if p.vary]
+            return self._varying_ps
+        
+        @varying_parameters.setter
+        def varying_parameters(self, values_dict: dict[str, float]) -> None:
+            """
+            Sets the `varying_parameters` values.
+            
+            Parameters
+            ----------
+            values_dict: dict[str, float]
+                1D array of values for varying parameters.
+            """
+            for key, value in values_dict.items():
+                self._varying_ps[key].value = value
+                    
         def _createparam(
             self,
             params: (
@@ -639,7 +673,7 @@ if HAS_REFL1D:
                 | tuple[ParameterLike]
                 | list[ParameterLike]
             ) = None,
-            sld_constraint: Callable | None = None,
+            sld_constraint: Callable[[list[float]], tuple[list[int], list[float]]] | None = None,
             max_delta_z: float = 0.5,
         ) -> None:
             self.name = "refl1dVFP"
@@ -841,14 +875,14 @@ if HAS_REFL1D:
         @classmethod
         def from_transform(
             cls, 
-            vfp_attrs: dict[str, np.ndarray | str | float | None | Callable]
+            vfp_attrs: dict[str, np.ndarray | str | float | None | Callable[[list[float]], tuple[list[int], list[float]]]]
         ) -> refl1dVFP:
             """
             Transforms a dictionary of vfp attributes to a `refl1dVFP`.
 
             Parameters
             ----------
-            vfp_attrs : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable])
+            vfp_attrs : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable[[list[float]], tuple[list[int], list[float]]]]
                 Original vfp attributes.    
 
             Returns
@@ -892,6 +926,38 @@ if HAS_REFL1D:
         
             transformed_vfp = init_specific_VFP(self, wanted_vfp, self.vfp_attrs.__dict__)
             return transformed_vfp
+        
+        @property
+        def varying_parameters(self) -> dict[str, bumpsParameter]:
+            """
+            Get parameters that are being fit that belong to vfp.
+
+            Returns
+            -------
+            dict[str, bumpsParameter]
+                Varying parameters.
+            """
+            ps = self.layer_parameters()
+            # self._varying_ps = [
+            #     p for p_list in ps.values() for p in p_list if p.bounds
+            # ]
+            self._varying_ps = {
+                p.name : p for p_list in ps.values() for p in p_list if p.bounds
+            }
+            return self._varying_ps
+        
+        @varying_parameters.setter
+        def varying_parameters(self, values_dict: dict[str, float]) -> None:
+            """
+            Sets the `varying_parameters` values.
+            
+            Parameters
+            ----------
+            values_dict : dict[str, np.ndarray]
+                1D array of values for varying parameters.
+            """
+            for key, value in values_dict.items():
+                self._varying_ps[key].value = value
                 
         def _createparam(
             self,
@@ -977,7 +1043,7 @@ if HAS_REFL1D:
 def init_specific_VFP(
     original_vfp: VFP | refnxVFP | refl1dVFP,
     vfp_type: Literal['vfp', 'refnx', 'refl1d'],
-    vfp_dict: dict[str, np.ndarray  |  str  |  float  |  None  |  Callable]
+    vfp_dict: dict[str, np.ndarray  |  str  |  float  |  None  |  Callable[[list[float]], tuple[list[int], list[float]]]]
 ) -> VFP | refnxVFP | refl1dVFP:
     """
     Helper function to load a type of VFP.
@@ -990,7 +1056,7 @@ def init_specific_VFP(
         The original vfp to transform to a different type of VFP.
     vfp_type : str
         Type of the desired VFP type.
-    vfp_dict : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable]
+    vfp_dict : dict[str, np.ndarray  |  str  |  float  |  None  |  Callable[[list[float]], tuple[list[int], list[float]]]]
         Original VFP attributes as a dictionary
         
     Returns
