@@ -404,7 +404,7 @@ class BaseVFP(ABC):
     def plot(
         self,
         points: int = 50,
-        posterior_samples: np.ndarray | None = None,
+        posterior_samples: dict[str, np.ndarray] | None = None,
         microslice_sld: bool = True,
         total_sld: bool = False,
         total_vf: bool = True,
@@ -554,7 +554,7 @@ class BaseVFP(ABC):
     
     @property
     @abstractmethod
-    def varying_parameters(self):
+    def varying_parameters(self) -> dict[str, ParameterLike]:
         """
         Abstract method to get all varying parameters in vfp.
         """
