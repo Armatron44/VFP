@@ -131,9 +131,10 @@ def _plot_sldprofile_top(
 def _plot_vfpprofile_mid(
     ax: plt.Axes,
     vfp: BaseVFP,
-    colours: list,
+    colours: tuple[tuple[float, float, float]],
     total_vf: bool,
-    posterior: bool
+    posterior: bool,
+    labels: list[str]
 ):
     vfs = vfp.vfs_for_display()[0]
     z = vfp.z_and_sld()[0]
@@ -141,61 +142,37 @@ def _plot_vfpprofile_mid(
     if posterior:
         if vfp.vfp_attrs.orientation == 'front':
             for i, lay_vfp in enumerate(vfs):
-                ax[1].plot(z, lay_vfp.T, alpha=0.03, color=colours[(2*i) % len(colours)])
+                ax[1].plot(
+                    z,
+                    lay_vfp.T,
+                    alpha=0.05,
+                    color=colours[(1+(2*i)) % len(colours)],
+                    zorder=i)
         elif vfp.vfp_attrs.orientation == 'back':
             for i, lay_vfp in enumerate(vfs):
                 ax[1].plot(
-                    z, 
-                    lay_vfp.T, 
-                    color=colours[(2 * len(vfp.tup_thicks) - 2 * i) % len(colours)],
+                    z,
+                    lay_vfp.T,
+                    alpha=0.05,
+                    color=colours[((2 * len(vfp.tup_thicks) + 1) - 2 * i) % len(colours)],
                     zorder=len(vfp.tup_thicks) - i
                 )        
     else:
         if vfp.vfp_attrs.orientation == "front":
             for i, lay_vfp in enumerate(vfs):
-                if i == 0:
-                    ax[1].plot(z, lay_vfp.T, label="Fronting")
-
-                elif i + 1 == len(vfs):
-                    ax[1].plot(z, lay_vfp.T, label="Backing")
-
-                else:
-                    ax[1].plot(z, lay_vfp.T, label=f"Layer {i}")
+                ax[1].plot(z, lay_vfp.T, label=labels[i], zorder=len(vfp.tup_thicks) + i)
 
         elif vfp.vfp_attrs.orientation == "back":
             for i, lay_vfp in enumerate(vfs):
-                if i == 0:
-                    ax[1].plot(
-                        z,
-                        lay_vfp.T,
-                        label="Fronting",
-                        color=colours[
-                            (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
-                        ],
-                        zorder=len(vfp.tup_thicks) - i,
-                    )
-
-                elif i + 1 == len(vfs):
-                    ax[1].plot(
-                        z,
-                        lay_vfp.T,
-                        label="Backing",
-                        color=colours[
-                            (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
-                        ],
-                        zorder=len(vfp.tup_thicks) - i,
-                    )
-
-                else:
-                    ax[1].plot(
-                        z,
-                        lay_vfp.T,
-                        label=f"Layer {len(vfs) - (i + 1)}",
-                        color=colours[
-                            (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
-                        ],
-                        zorder=len(vfp.tup_thicks) - i,
-                    )
+                ax[1].plot(
+                    z, 
+                    lay_vfp.T,
+                    label=labels[i],
+                    color=colours[
+                        (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)                        
+                    ],
+                    zorder=2*len(vfp.tup_thicks) - i
+                )
 
         if total_vf:
             ax[1].plot(
@@ -209,6 +186,8 @@ def model_plot(
     microslice: bool = True,
     total_sld: bool = False,
     total_vf: bool = True,
+    vfp_plot_labels: None | list[str] = None,
+    cmap: None | tuple[tuple[float, float, float]] = None
 ) -> tuple[matplotlib.figure.Figure, np.ndarray[plt.Axes]]:
     """
     Produces a three axis figure to visualise VFP model.
@@ -234,7 +213,13 @@ def model_plot(
         are plotted seperately.
     total_vf : boolean
         If True, will plot the sum of all layers' volume fractions.
-
+    sld_plot_labels : None | list[str], optional
+        List of str to be used as lables in the sld plot.
+    vfp_plot_labels : None | list[str], optional
+        List of str to be used as lables in the vfp plot.
+    vfp_plot_cmap: None | tuple[tuple[float, float, float]], optional
+        Qualitative colourmap. Defaults to matplotlib's tab20.
+    
     Returns
     -------
     tuple[matplotlib.figure.Figure, np.ndarray[plt.Axes]]
@@ -247,8 +232,12 @@ def model_plot(
     points += 2  
     surfaces = surfaces_for_display(vfp, points=points)
 
-    # define some colours to use for the surface plot.
-    colours = matplotlib.colormaps["tab20"].colors
+    # define some colours to use for vfp & surface plots.
+    colours = cmap if cmap is not None else matplotlib.colormaps["tab20"].colors
+    
+    if vfp_plot_labels is None:
+        vfp_plot_labels = [f"Layer {i}" for i in range(len(vfp.tup_thicks) + 1)]
+        vfp_plot_labels[0], vfp_plot_labels[-1] = "Fronting", "Backing"
     
     # get original vfp varying_parameter values
     original_ps = copy.deepcopy(vfp.varying_parameters)
@@ -262,12 +251,12 @@ def model_plot(
                 key : values[i] for key, values in posterior_samples.items()
             }
             _plot_sldprofile_top(ax, vfp, microslice, total_sld, posterior=True)
-            _plot_vfpprofile_mid(ax, vfp, colours=colours, total_vf=total_vf, posterior=True)
+            _plot_vfpprofile_mid(ax, vfp, colours=colours, total_vf=total_vf, posterior=True, labels=vfp_plot_labels)
     
     # plot main profile.    
     vfp.varying_parameters = original_ps
     _plot_sldprofile_top(ax, vfp, microslice, total_sld, posterior=False)
-    _plot_vfpprofile_mid(ax, vfp, colours=colours, total_vf=total_vf, posterior=False)
+    _plot_vfpprofile_mid(ax, vfp, colours=colours, total_vf=total_vf, posterior=False, labels=vfp_plot_labels)
     
     # Only plots msld and isld curves if they are not zero.
     # z, all_slds = _gen_sld_profile(vfp) if microslice else vfp.z_and_sld() 
