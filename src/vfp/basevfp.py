@@ -318,7 +318,7 @@ class BaseVFP(ABC):
         """
         Get z and sld values from vfp for plotting.
         
-        Returns z values from `self.zeds` and also returns
+        Returns z values from `self.zeds` and also returns non-microsliced
         sld values from `self.get_slds` calculated from the VFP.
 
         Parameters
@@ -347,7 +347,7 @@ class BaseVFP(ABC):
             offset = np.sum(self.tup_thicks)
             z = -(z - offset)
 
-        return z, slds
+        return z, slds.T
 
     def sld_offset(self) -> float:
         """
@@ -405,9 +405,11 @@ class BaseVFP(ABC):
         self,
         points: int = 50,
         posterior_samples: dict[str, np.ndarray] | None = None,
-        microslice_sld: bool = True,
-        total_sld: bool = False,
-        total_vf: bool = True,
+        plots_required: None | list[int] | set[int] = None,
+        fig: None | matplotlib.figure.Figure = None,
+        sld_plot_kwargs: None | dict = None,
+        vfp_plot_kwargs: None | dict = None,
+        surface_plot_kwargs: None | dict = None,
     ) -> tuple[
         matplotlib.figure.Figure, 
         np.ndarray[matplotlib.axes._axes.Axes]
@@ -447,9 +449,11 @@ class BaseVFP(ABC):
             vfp=self,
             points=points,
             posterior_samples=posterior_samples,
-            microslice=microslice_sld,
-            total_sld=total_sld,
-            total_vf=total_vf,
+            plots_required=plots_required,
+            fig=fig,
+            sld_plot_kwargs=sld_plot_kwargs,
+            vfp_plot_kwargs=vfp_plot_kwargs,
+            surface_plot_kwargs=surface_plot_kwargs,
         )
 
         return fig, ax
