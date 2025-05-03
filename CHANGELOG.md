@@ -6,11 +6,13 @@
 
 ### Feat
 
-- Add `vfp.VFP` which does not rely on `refnx` or `refl1d`.
-- Add ability to plot posterior samples via vfp.plot().
+- Add `vfp.VFP` which does not rely on `refnx` or `refl1d` dependencies.
+- Add ability to plot posterior samples via `BaseVFP.plot()`.
+- Customise colours and labels in `BaseVFP.plot()`.
 
 ### Fix
 
+- Update `refl1dVFP` to work with `refl1d` and `bumps` tagged versions > 1.
 - Generalise demaglocs and demagwidths to handle n peaks. 
 - Remove superfluous vfp attributes in `BaseVFP`.
 

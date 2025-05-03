@@ -1,11 +1,14 @@
+# standard
 from __future__ import annotations
 import copy
 from typing import Literal
 from collections.abc import Callable
 import warnings
 
+# third party
 import numpy as np
 
+# this package
 from vfp.basevfp import BaseVFP, VFPAttributes, check_init_input
 from vfp.typing import ParameterLike
 

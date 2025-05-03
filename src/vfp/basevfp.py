@@ -9,7 +9,7 @@ from typing import Callable, Literal
 import numpy as np
 import matplotlib
 
-# this module
+# this package
 from vfp.calc import calc_dzs, calc_zeds, init_demag, integrate_vfp, calc_vfp
 from vfp.plotting import model_plot
 from vfp.typing import ParameterLike
