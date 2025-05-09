@@ -219,7 +219,7 @@ class PlotType(StrEnum):
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
         surfaces : np.ndarray
-            TODO:
+            RVs to plot.
         points : int
            Number of points to plot across the surfaces
         colours : tuple[tuple[float, float, float]] | None, optional
