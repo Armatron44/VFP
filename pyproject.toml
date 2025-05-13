@@ -9,10 +9,10 @@ readme = "README.md"
 packages = [{include = "vfp", from="src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.12, <4.0"
-matplotlib = ">=3.10.0"
-numpy = ">=2.1"
-scipy = ">=1.14"
+python = "^3.12"
+matplotlib = "^3.10.0"
+numpy = "^2.1"
+scipy = "^1.14"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
