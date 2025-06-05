@@ -21,13 +21,16 @@ class PlotType(StrEnum):
     VFP = "vfp"
     SURFACES = "surfaces"
     
-    def plot(self, *args, **kwargs):
+    def plot(self, *args, **kwargs) -> None:
+        """
+        Wraps specific plot functions depending on PlotType.
+        """
         if self == PlotType.SLD:
-            return self._plot_sld(*args, **kwargs)
+            self._plot_sld(*args, **kwargs)
         elif self == PlotType.VFP:
-            return self._plot_vfp(*args, **kwargs)
+            self._plot_vfp(*args, **kwargs)
         elif self == PlotType.SURFACES:
-            return self._plot_surfaces(*args, **kwargs)
+            self._plot_surfaces(*args, **kwargs)
     
     def _plot_sld(
         self, 
@@ -126,7 +129,7 @@ class PlotType(StrEnum):
         ax: plt.Axes, 
         vfp: BaseVFP, 
         posterior: bool, 
-        colours: tuple[tuple[float, float, float]] | None = None, 
+        colours: tuple[tuple[float, float, float], ...] | None = None, 
         total_vf: bool = True, 
         labels: list[str] | None = None
     ) -> None:
@@ -141,7 +144,7 @@ class PlotType(StrEnum):
             Concrete child instance of BaseVFP to plot.
         posterior : bool
             Flag to indicate if plotting posterior samples when calling function.
-        colours : tuple[tuple[float, float, float]] | None, optional
+        colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot vfp profile. Posterior samples are plotted in
             every second colour, while the representative profile of each layer
             is plotted in every odd colour. matplotlib's tab20 is default.
@@ -167,7 +170,8 @@ class PlotType(StrEnum):
                         lay_vfp.T,
                         alpha=0.05,
                         color=colours[(1+(2*i)) % len(colours)],
-                        zorder=i)
+                        zorder=i
+                    )
             elif vfp.vfp_attrs.orientation == 'back':
                 for i, lay_vfp in enumerate(vfs):
                     ax.plot(
@@ -207,7 +211,7 @@ class PlotType(StrEnum):
         vfp: BaseVFP, 
         surfaces: np.ndarray, 
         points: int, 
-        colours: tuple[tuple[float, float, float]] | None = None
+        colours: tuple[tuple[float, float, float], ...] | None = None
     ) -> None:
         """
         Plots a stochastic simulation of layers.
@@ -222,7 +226,7 @@ class PlotType(StrEnum):
             RVs to plot.
         points : int
            Number of points to plot across the surfaces
-        colours : tuple[tuple[float, float, float]] | None, optional
+        colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot. Defaults to tab20
         """
         # get default colours if non specified.
@@ -539,7 +543,7 @@ def model_plot(
 
 def _gen_sld_profile(
     vfp: BaseVFP,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Calculate sld profiles (nuclear, magnetic and imaginary) from the VFP.
 
