@@ -10,9 +10,9 @@ packages = [{include = "vfp", from="src"}]
 
 [tool.poetry.dependencies]
 python = "^3.12"
-matplotlib = "^3.10.0"
-numpy = "^2.1"
-scipy = "^1.14"
+matplotlib = "^3.10"
+numpy = "^2.2"
+scipy = "^1.16"
 numba = "^0.61.2"
 
 [tool.poetry.group.dev.dependencies]
