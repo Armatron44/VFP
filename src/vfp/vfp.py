@@ -237,9 +237,9 @@ class VFP(BaseVFP):
     @property
     def varying_parameters(self):
         """ 
-        Not required for this class.
+        Not defined for this class, so returns None.
         """
-        raise NotImplementedError
+        return None
 
 if HAS_REFNX:
     class refnxVFP(Component, BaseVFP):
@@ -543,22 +543,26 @@ if HAS_REFNX:
             dict[str, refnxParameter]
                 Varying parameters of vfp.
             """
-            self._varying_ps = {p.name : p for p in self.parameters if p.vary}
-            #self._varying_ps = [p for p in self.parameters if p.vary]
-            return self._varying_ps
+            # get varying parameters. Not set as attr as would
+            # require re-init of vfp to change vary on any parameter.
+            varying_pars = {p.name : p for p in self.parameters if p.vary}
+            return varying_pars
         
         @varying_parameters.setter
         def varying_parameters(self, values_dict: dict[str, float]) -> None:
             """
-            Sets the `varying_parameters` values.
+            Sets the values of the varying_parameters.
             
             Parameters
             ----------
             values_dict: dict[str, float]
                 1D array of values for varying parameters.
             """
+            # get varying parameters
+            varying_pars = {p.name : p for p in self.parameters if p.vary}
+            # and set value.
             for key, value in values_dict.items():
-                self._varying_ps[key].value = value
+                varying_pars[key].value = value
                     
         def _createparam(
             self,
@@ -941,26 +945,27 @@ if HAS_REFL1D:
                 Varying parameters.
             """
             ps = self.layer_parameters()
-            # self._varying_ps = [
-            #     p for p_list in ps.values() for p in p_list if p.bounds
-            # ]
-            self._varying_ps = {
+            varying_pars = {
                 p.name : p for p_list in ps.values() for p in p_list if p.bounds
             }
-            return self._varying_ps
+            return varying_pars
         
         @varying_parameters.setter
         def varying_parameters(self, values_dict: dict[str, float]) -> None:
             """
-            Sets the `varying_parameters` values.
+            Sets the values of `varying_parameters`.
             
             Parameters
             ----------
             values_dict : dict[str, np.ndarray]
                 1D array of values for varying parameters.
             """
+            ps = self.layer_parameters()
+            varying_pars = {
+                p.name : p for p_list in ps.values() for p in p_list if p.bounds
+            }
             for key, value in values_dict.items():
-                self._varying_ps[key].value = value
+                varying_pars[key].value = value
                 
         def _createparam(
             self,
