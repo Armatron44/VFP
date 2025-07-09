@@ -558,7 +558,7 @@ class BaseVFP(ABC):
     
     @property
     @abstractmethod
-    def varying_parameters(self) -> dict[str, ParameterLike]:
+    def varying_parameters(self) -> dict[str, ParameterLike] | None:
         """
         Abstract method to get all varying parameters in vfp.
         """
