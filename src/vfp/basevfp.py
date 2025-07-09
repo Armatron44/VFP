@@ -328,10 +328,11 @@ class BaseVFP(ABC):
 
         Returns
         -------
-        np.ndarray
-            z distance from fronting interface either reduced or full.
-        np.ndarray
-            slds (2d), coherent, imaginary, magnetic. Either reduced or full.
+        tuple[np.ndarray, np.ndarray]
+            First array is z distance from fronting interface
+            either reduced or full. Second array is slds (2d), 
+            coherent, imaginary, magnetic across columns. 
+            Either reduced or full.
         """
         self.process_model() # update the model.
         z = np.array(self.zeds)
