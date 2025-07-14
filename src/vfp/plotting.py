@@ -66,16 +66,21 @@ class PlotType(StrEnum):
             z = z + vfp.sld_offset()
         else:
             z, all_slds = vfp.z_and_sld()
-
-        ss_condition = vfp.vfp_attrs.spin_state if total_sld else "none"
         
+        # the above return slightly different z lengths
+        # we'll use z_and_sld to get appropriate lims.
+        z_for_lim, _ = vfp.z_and_sld()
+        z_for_lim = z_for_lim if vfp.vfp_attrs.orientation == 'front' else z_for_lim[::-1]
+        def_xlower_lim, def_xupper_lim = self._calc_xlims(z_for_lim)
+        
+        ss_condition = vfp.vfp_attrs.spin_state if total_sld else "none"
         sld_to_plot, sld_label = _tot_sld(all_slds, ss_condition)
         alpha = 0.03 if posterior else 1
         sld_to_plot_kwargs = dict(
             alpha=alpha, 
             label=None if posterior else sld_label
         )
-
+        #z = -z+np.sum(vfp.vfp_attrs.thicknesses) if vfp.vfp_attrs.orientation == 'back' else z
         ax.plot(z,
                 sld_to_plot,
                 color="k",
@@ -123,6 +128,7 @@ class PlotType(StrEnum):
                 )  # make sure the isld isn't obscured by the first axis.
             ax.legend(frameon=False)
             ax.set_ylabel(r"SLD / $\mathrm{\AA{}}^{-2} \times 10^{-6}$")
+            ax.set_xlim(def_xlower_lim, def_xupper_lim)
             
     def _plot_vfp(
         self, 
@@ -135,6 +141,13 @@ class PlotType(StrEnum):
     ) -> None:
         """
         Plots the vfp profile on a given axis.
+        
+        Notes 
+        -----
+        When orientation = back, the return from 
+        `vfp.vfs_for_display` values are reversed.
+        Want to apply same colours to same material
+        if one had two vfps with opposite orientations.
 
         Parameters
         ----------
@@ -157,10 +170,13 @@ class PlotType(StrEnum):
         if labels is None:
             labels = [f"Layer {i}" for i in range(len(vfp.tup_thicks) + 1)]
             labels[0], labels[-1] = "Fronting", "Backing"
+            labels = labels[::-1] if vfp.vfp_attrs.orientation == 'back' else labels
         colours = colours if colours is not None else matplotlib.colormaps["tab20"].colors
         
         vfs = vfp.vfs_for_display()[0]
         z = vfp.z_and_sld()[0]
+        z = z if vfp.vfp_attrs.orientation == 'front' else z[::-1]
+        def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
         
         if posterior:
             if vfp.vfp_attrs.orientation == 'front':
@@ -178,7 +194,9 @@ class PlotType(StrEnum):
                         z,
                         lay_vfp.T,
                         alpha=0.05,
-                        color=colours[((2 * len(vfp.tup_thicks) + 1) - 2 * i) % len(colours)],
+                        color=colours[ # reverse colour order.
+                            ((2 * len(vfp.tup_thicks) + 1) - 2 * i) % len(colours)
+                        ],
                         zorder=len(vfp.tup_thicks) - i
                     )        
         else:
@@ -192,7 +210,7 @@ class PlotType(StrEnum):
                         z, 
                         lay_vfp.T,
                         label=labels[i],
-                        color=colours[
+                        color=colours[ # reverse colour order.
                             (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)                        
                         ],
                         zorder=2*len(vfp.tup_thicks) - i
@@ -203,8 +221,9 @@ class PlotType(StrEnum):
                     z, np.sum(vfs.T, axis=1), label=r"Total", linestyle="--", color="k"
                 )
             ax.set_ylabel(r"Volume Fraction")
+            ax.set_xlim(def_xlower_lim, def_xupper_lim)
             ax.legend(frameon=False)
-            
+    
     def _plot_surfaces(
         self, 
         ax: plt.Axes, 
@@ -229,105 +248,82 @@ class PlotType(StrEnum):
         colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot. Defaults to tab20
         """
+        n_interf = len(vfp.tup_thicks)
         # get default colours if non specified.
-        colours = colours if colours is not None else matplotlib.colormaps["tab20"].colors
+        colours = matplotlib.colormaps["tab20"].colors if colours is None else colours
+        # reverse and select for fill + points.
+        if vfp.vfp_attrs.orientation == 'front':
+            points_colours = colours[:2*n_interf+1:2]
+            fill_colours = colours[1:2*n_interf+2:2]
+            # zorder should decrease away from fronting:
+            points_zorder = np.arange(start=2*n_interf+1, stop=1, step=-2)
+            fill_zorder = np.arange(start=2*n_interf, stop=-1, step=-2)
+        else:
+            points_colours = colours[:2*n_interf-1:2][::-1] # keep point colour as found in front.
+            fill_colours = colours[1:2*n_interf+2:2][::-1]
+            # zorder increase as progress toward fronting.
+            points_zorder = np.arange(start=1, stop=2*n_interf+1, step=2) + 2
+            fill_zorder = np.arange(start=0, stop=2*n_interf+1, step=2)
         
         # attempt to recreate margin that would be found in vfp plot.
         z = vfp.z_and_sld()[0]
-        margin = 0.05 * (z[-1] - z[0])
-        def_xlower_lim, def_xupper_lim = z[0] - margin, z[-1] + margin
+        # flip z if back orientation so that we can define lower and upper lims
+        # from first and last z position in array.
+        z = z[::-1] if vfp.vfp_attrs.orientation == 'back' else z
+        def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
         
         # plot surfaces.
-        if vfp.vfp_attrs.orientation == "front":
-            for i, j in enumerate(surfaces):  # do the surfaces
-                ax.plot(
-                    j,
-                    range(0, points),
-                    marker=".",
-                    zorder=(2 * len(vfp.tup_thicks) + 1 - 2 * i),
+        # if vfp.vfp_attrs.orientation == "front":
+        for i, j in enumerate(surfaces):  # do the surfaces
+            ax.plot(
+                j,
+                range(0, points),
+                marker=".",
+                zorder=points_zorder[i],
+                color=points_colours[
+                    i % len(points_colours) # loop colours
+                ]
+            )
+
+        for i in range(0, n_interf + 1):  # then do the fills
+            if i == 0:
+                ax.fill_betweenx(
+                    y=range(0, points),
+                    x1=def_xlower_lim,
+                    x2=surfaces[i],
+                    interpolate=True,
+                    color=fill_colours[
+                        i % len(fill_colours)
+                    ],
+                    zorder=fill_zorder[i],
                 )
 
-            for i in range(0, len(vfp.tup_thicks) + 1):  # then do the fills
-                if i == 0:
-                    ax.fill_betweenx(
-                        y=range(0, points),
-                        x1=def_xlower_lim - 1,
-                        x2=surfaces[i],
-                        interpolate=True,
-                        color=colours[(2 * i % len(colours)) + 1],
-                        zorder=(2 * len(vfp.tup_thicks) - 2 * i),
-                    )
-
-                elif i < len(vfp.tup_thicks):
-                    ax.fill_betweenx(
-                        y=range(0, points),
-                        x1=surfaces[i - 1],
-                        x2=surfaces[i],
-                        where=surfaces[i] > surfaces[i - 1],
-                        interpolate=True,
-                        zorder=(2 * len(vfp.tup_thicks) - 2 * i),
-                        color=colours[(2 * i % len(colours)) + 1],
-                    )
-
-                elif i == len(vfp.tup_thicks):
-                    ax.fill_betweenx(
-                        y=range(0, points),
-                        x1=surfaces[i - 1],
-                        x2=def_xupper_lim + 1,
-                        where=def_xupper_lim + 1 > surfaces[i - 1],
-                        interpolate=True,
-                        zorder=(2 * len(vfp.tup_thicks) - 2 * i),
-                        color=colours[(2 * i % len(colours)) + 1],
-                    )
-
-        elif vfp.vfp_attrs.orientation == "back":
-            for i, j in enumerate(surfaces):  # do the surfaces
-                ax.plot(
-                    j,
-                    range(0, points),
-                    marker=".",
-                    color=colours[(2*len(vfp.tup_thicks) - 2 * (i+1)) % len(colours)],
-                    zorder=(len(vfp.tup_thicks) + 1 + 2 * i),
+            elif i < len(vfp.tup_thicks):
+                ax.fill_betweenx(
+                    y=range(0, points),
+                    x1=surfaces[i - 1],
+                    x2=surfaces[i],
+                    where=surfaces[i] > surfaces[i - 1],
+                    interpolate=True,
+                    color=fill_colours[
+                        i % len(fill_colours)
+                    ],
+                    zorder=fill_zorder[i],
                 )
 
-            for i in range(0, len(vfp.tup_thicks) + 1):  # then do the fills
-                if i == 0:
-                    ax.fill_betweenx(
-                        y=range(0, points),
-                        x1=def_xlower_lim - 1,
-                        x2=surfaces[i],
-                        interpolate=True,
-                        color=colours[
-                            (2 * len(vfp.tup_thicks) + 1 - 2 * i) % len(colours)
-                        ],
-                        zorder=2 * i,
-                    )
+            elif i == len(vfp.tup_thicks):
+                ax.fill_betweenx(
+                    y=range(0, points),
+                    x1=surfaces[i - 1],
+                    x2=def_xupper_lim,
+                    where=def_xupper_lim > surfaces[i - 1],
+                    interpolate=True,
+                    color=fill_colours[
+                        i % len(fill_colours)
+                    ],
+                    zorder=fill_zorder[i],
+                )
 
-                elif i < len(vfp.tup_thicks):
-                    ax.fill_betweenx(
-                        y=range(0, points),
-                        x1=surfaces[i - 1],
-                        x2=surfaces[i],
-                        where=surfaces[i] > surfaces[i - 1],
-                        interpolate=True,
-                        color=colours[
-                            (2 * len(vfp.tup_thicks) + 1 - 2 * i) % len(colours)
-                        ],
-                        zorder=2 * i,
-                    )
-
-                elif i == len(vfp.tup_thicks):
-                    ax.fill_betweenx(
-                        y=range(0, points),
-                        x1=surfaces[i - 1],
-                        x2=def_xupper_lim + 1,
-                        where=def_xupper_lim + 1 > surfaces[i - 1],
-                        interpolate=True,
-                        color=colours[
-                            (2 * len(vfp.tup_thicks) + 1 - 2 * i) % len(colours)
-                        ],
-                        zorder=2 * i,
-                    )
         # define some y limits for ax[2] that allow for points > 0.
         ylower = 0.5
         yupper = (points - 2) + ((points - 1) - (points - 2)) / 2
@@ -342,7 +338,27 @@ class PlotType(StrEnum):
             ax.spines[border].set_zorder(
                 (len(vfp.tup_thicks) + 1) * 3
             )  # borders will be higher than surfaces and fills.
-        
+            
+    def _calc_xlims(
+        self,
+        z: np.ndarray
+    ) -> tuple[float, float]:
+        """
+        Calculates horizontal limits for axes given `z`.
+
+        Parameters
+        ----------
+        z : np.ndarray
+            The z coordinate over the vfp structure.
+
+        Returns
+        -------
+        tuple[float, float]
+            Lower and upper x limits
+        """
+        margin = 0.05 * (z[-1] - z[0])
+        return z[0] - margin, z[-1] + margin
+    
 
 class AxesIndex(IntEnum):
     FIRST = 0
@@ -436,12 +452,12 @@ def surfaces_for_display(vfp: BaseVFP,
 def model_plot(
     vfp: BaseVFP,
     points: int = 50,
-    posterior_samples: None | dict[str, np.ndarray] = None,
-    plots_required: None | list[str] = None,
-    fig: None | matplotlib.figure.Figure = None,
-    sld_plot_kwargs: None | dict = None,
-    vfp_plot_kwargs: None | dict = None,
-    surface_plot_kwargs: None | dict = None,
+    posterior_samples: dict[str, np.ndarray] | None = None,
+    plots_required: list[str] | None = None,
+    fig: matplotlib.figure.Figure | None = None,
+    sld_plot_kwargs: dict | None = None,
+    vfp_plot_kwargs: dict | None = None,
+    surface_plot_kwargs: dict | None = None,
 ) -> tuple[matplotlib.figure.Figure, np.ndarray[plt.Axes]]:
     """
     Produces a three axis figure to visualise VFP model.
@@ -457,22 +473,14 @@ def model_plot(
     points : integer
         Number of points to simulate across the surfaces.
     posterior_samples : dict[str, np.ndarray] | None, optional
-        If supplied, posterior samples will be plotted the varying parameters.
-    microslice : boolean
-        If True, will return the microsliced sld profiles.
-        Otherwise, get original sld profiles before they are averaged and
-        microsliced.
-    total_sld : boolean
-        If True, returns sldn +/- sldm profiles. If false, the sldn and sldm
-        are plotted seperately.
-    total_vf : boolean
-        If True, will plot the sum of all layers' volume fractions.
-    sld_plot_labels : None | list[str], optional
-        List of str to be used as lables in the sld plot.
-    vfp_plot_labels : None | list[str], optional
-        List of str to be used as lables in the vfp plot.
-    vfp_plot_cmap: None | tuple[tuple[float, float, float]], optional
-        Qualitative colourmap. Defaults to matplotlib's tab20.
+        If supplied, will plot the posterior profiles.
+    plots_required : list[str] | None, optional
+        A list of "sld", "vfp" and "surfaces".
+        Order in the list will affect the order of the plots.
+    fig : matplotlib.figure.Figure | None = None,
+    sld_plot_kwargs : dict | None = None, optional
+    vfp_plot_kwargs : dict | None = None, optional
+    surface_plot_kwargs : dict | None = None, optional
     
     Returns
     -------
@@ -482,8 +490,21 @@ def model_plot(
     if points <= 0:
         raise ValueError("points must be > 0.")
     
+    # run check on unique vals in plots_required
+    possible_plots = ["sld", "vfp", "surfaces"]
+    if isinstance(plots_required, list):
+        # remove duplicates, but preserve order.
+        plots_required = list(dict.fromkeys(plots_required))
+        if not all([
+            ptype in possible_plots for ptype in plots_required
+        ]):
+            raise ValueError(f'Check plots_required only contains "sld", "vfp", "surfaces".')
+    elif plots_required is None:
+        plots_required = ["sld", "vfp", "surfaces"]
+    else:
+        raise TypeError(f'plots_required must be a list, got {type(required_plots)}.')
+    
     # get axes index for required plots.
-    plots_required = ["sld", "vfp", "surfaces"] if plots_required is None else plots_required
     axes_enum = AxesIndex.from_requested_plots_list(
         requested_plots=plots_required
     )
@@ -497,11 +518,19 @@ def model_plot(
 
     # setup fig & axes.
     if fig is None:
-        fig, ax = plt.subplots(len(plots_required), 1, sharex=True, figsize=(8, 3 * len(plots_required)))
+        fig, _ = plt.subplots(
+            nrows=len(plots_required), 
+            ncols=1, 
+            sharex=True, 
+            figsize=(8, 3 * len(plots_required))
+        )
+
     else:
         for i in range(len(plots_required)):
             fig.add_subplot(len(plots_required), 1, i)
-        ax = fig.axes
+    
+    # get ax this way so that its a flat list for 1 or multiple axes.
+    ax = fig.axes
 
     # plot posterior samples:
     if posterior_samples is not None:

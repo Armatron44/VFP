@@ -406,11 +406,11 @@ class BaseVFP(ABC):
         self,
         points: int = 50,
         posterior_samples: dict[str, np.ndarray] | None = None,
-        plots_required: None | list[int] | set[int] = None,
-        fig: None | matplotlib.figure.Figure = None,
-        sld_plot_kwargs: None | dict = None,
-        vfp_plot_kwargs: None | dict = None,
-        surface_plot_kwargs: None | dict = None,
+        plots_required: list[str] | None = None,
+        fig: matplotlib.figure.Figure | None = None,
+        sld_plot_kwargs: dict | None = None,
+        vfp_plot_kwargs: dict | None = None,
+        surface_plot_kwargs: dict | None = None,
     ) -> tuple[
         matplotlib.figure.Figure, 
         np.ndarray[matplotlib.axes._axes.Axes]
@@ -421,22 +421,33 @@ class BaseVFP(ABC):
         Top plot = nsld / msld / isld
         Middle plot = volume fraction profiles
         Bottom plot = surface profiles
+        
+        Notes
+        -----
+        If `vfp.orientation` = 'back', then the incident
+        radiation was brought in through the backing.
+        The sld plot will be flipped if orientation is back.
+        The vfp will be flipped if back. The default colours
+        will be applied in reverse to follow front orientations.
+        Similarly, the default labels are reversed.
 
         Parameters
         ----------
         points : integer
             Number of points to simulate across the surfaces.
-        posterior_samples : np.ndarray
+        posterior_samples : dict[str, np.ndarray]
             Samples from the posterior to plot.
-            Expected shape = (nsamples, nparameters)
+            The keys should match the names of varying parameters in the vfp.
+            The array should be 1D array of parameter values.
             If the first axis is large (say > 300), this will take some time.
-        microslice_sld : bool
-            If True, will return SLD profiles after microslicing the profile.
-        total_sld : bool
-            If True, will return SLD+ or SLD- profiles.
-            If False, the SLDn and SLDm parts will be plotted seperately.
-        total_vf : bool
-            If True, will plot the sum of all layers' volume fractions.
+        plots_required : list[str]
+            A list of plots required. Possible acceptable string values are
+            "sld", "vfp", "surfaces". The order of the strings in the list
+            will affect the order of the plot.
+        fig : matplotlib.figure.Figure | None = None,
+        sld_plot_kwargs : dict | None = None,
+        vfp_plot_kwargs : dict | None = None,
+        surface_plot_kwargs : dict | None = None,
 
         Returns
         -------
