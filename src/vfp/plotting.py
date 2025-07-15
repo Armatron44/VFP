@@ -21,17 +21,6 @@ class PlotType(StrEnum):
     VFP = "vfp"
     SURFACES = "surfaces"
     
-    def plot(self, *args, **kwargs) -> None:
-        """
-        Wraps specific plot functions depending on PlotType.
-        """
-        if self == PlotType.SLD:
-            self._plot_sld(*args, **kwargs)
-        elif self == PlotType.VFP:
-            self._plot_vfp(*args, **kwargs)
-        elif self == PlotType.SURFACES:
-            self._plot_surfaces(*args, **kwargs)
-    
     def _plot_sld(
         self, 
         ax: plt.Axes,
@@ -68,7 +57,7 @@ class PlotType(StrEnum):
             z, all_slds = vfp.z_and_sld()
         
         # the above return slightly different z lengths
-        # we'll use z_and_sld to get appropriate lims.
+        # we'll use z_and_sld to get appropriate lims that match vfp and surfaces.
         z_for_lim, _ = vfp.z_and_sld()
         z_for_lim = z_for_lim if vfp.vfp_attrs.orientation == 'front' else z_for_lim[::-1]
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z_for_lim)
@@ -80,7 +69,7 @@ class PlotType(StrEnum):
             alpha=alpha, 
             label=None if posterior else sld_label
         )
-        #z = -z+np.sum(vfp.vfp_attrs.thicknesses) if vfp.vfp_attrs.orientation == 'back' else z
+
         ax.plot(z,
                 sld_to_plot,
                 color="k",
@@ -338,6 +327,16 @@ class PlotType(StrEnum):
             ax.spines[border].set_zorder(
                 (len(vfp.tup_thicks) + 1) * 3
             )  # borders will be higher than surfaces and fills.
+    
+    def plot(self, *args, **kwargs) -> None:
+        """
+        Wraps specific plot functions depending on PlotType.
+        """
+        plot_func = plot_dispatch.get(self)
+        if plot_func:
+            plot_func(self, *args, **kwargs)
+        else:
+            raise NotImplementedError(f"Plot function for {self.value} not implemented.")
             
     def _calc_xlims(
         self,
@@ -359,13 +358,31 @@ class PlotType(StrEnum):
         margin = 0.05 * (z[-1] - z[0])
         return z[0] - margin, z[-1] + margin
     
+# create a map of PlotType members to plot fns in PlotType.
+plot_dispatch = {
+    PlotType.SLD : PlotType._plot_sld,
+    PlotType.VFP : PlotType._plot_vfp,
+    PlotType.SURFACES : PlotType._plot_surfaces
+}
 
 class AxesIndex(IntEnum):
+    """
+    Defines index of multiple axes.
+    
+    Intended to be created by passing a list of strings
+    representing the required plots to
+    `AxesIndex.from_requested_plots_list`.
+    """
     FIRST = 0
     SECOND = auto()
     THIRD = auto()
     
     def __new__(cls, value):
+        """
+        Create's AxesIndex member with values defined
+        above in the enum member definitions.
+        Also set _plot_type attr to None.
+        """
         member = int.__new__(cls, value)
         member._value_ = value
         member._plot_type = None
@@ -373,6 +390,10 @@ class AxesIndex(IntEnum):
     
     @property
     def plot_type(self) -> PlotType:
+        """
+        The plot type of this axis. 
+        Set from the requested plots.
+        """
         return self._plot_type
     
     @plot_type.setter
@@ -384,12 +405,28 @@ class AxesIndex(IntEnum):
         cls, 
         requested_plots: list[str]
     ) -> list[AxesIndex]:
+        """
+        Creates AxesIndex from `requested_plots` list.
+
+        Parameters
+        ----------
+        requested_plots : list[str]
+            Plots requested. Strings can be all or
+            some combination of "sld", "vfp", 
+            "surfaces".
+
+        Returns
+        -------
+        list[AxesIndex]
+        """
+        # all possible plot types
         plot_types_map = {pt.value: pt for pt in PlotType}
+        # filter the PlotTypes requested.
         requested_plot_types = [plot_types_map[plot_name] for plot_name in requested_plots]
         req_plots_and_axis = []
         for pt in requested_plot_types:
-            axis = cls(requested_plot_types.index(pt))
-            axis.plot_type = pt
+            axis = cls(requested_plot_types.index(pt)) # create AxesEnum from PlotType.
+            axis.plot_type = pt # set plot_type property to a PlotType
             req_plots_and_axis.append(axis)
         return req_plots_and_axis
 
