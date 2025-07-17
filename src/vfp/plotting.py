@@ -1,16 +1,16 @@
 # standard
 from __future__ import annotations
-from functools import partial
 import copy
 from enum import IntEnum, StrEnum, auto
+from functools import partial
 from typing import TYPE_CHECKING
 
 # third party
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 from refnx.reflect.interface import Step
 from scipy import stats
-import matplotlib.pyplot as plt
-import matplotlib
 
 if TYPE_CHECKING:
     from vfp.basevfp import BaseVFP
@@ -20,14 +20,14 @@ class PlotType(StrEnum):
     SLD = "sld"
     VFP = "vfp"
     SURFACES = "surfaces"
-    
+
     def _plot_sld(
-        self, 
+        self,
         ax: plt.Axes,
         vfp: BaseVFP,
         posterior: bool,
         microslice: bool = True,
-        total_sld: bool = False
+        total_sld: bool = False,
     ) -> None:
         """
         Plots sld profile.
@@ -39,13 +39,14 @@ class PlotType(StrEnum):
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
         posterior : bool
-            Flag to indicate if plotting posterior samples when calling function.
+            Flag to indicate if plotting posterior samples when calling
+            function.
         microslice : bool, optional
             Flag to plot sld as microsliced slabs as fed into refnx / refl1d.
-            If False, continuous sld is plotted as calculated from vfp. 
+            If False, continuous sld is plotted as calculated from vfp.
             By default True.
         total_sld : bool, optional
-            If true, plots sldn (possibly) +/- sldm. 
+            If true, plots sldn (possibly) +/- sldm.
             Else, plots sldn, sldm separately.
             By default, False.
         """
@@ -55,57 +56,55 @@ class PlotType(StrEnum):
             z = z + vfp.sld_offset()
         else:
             z, all_slds = vfp.z_and_sld()
-        
+
         # the above return slightly different z lengths
-        # we'll use z_and_sld to get appropriate lims that match vfp and surfaces.
+        # use z_and_sld to get lims that match vfp and surfaces.
         z_for_lim, _ = vfp.z_and_sld()
-        z_for_lim = z_for_lim if vfp.vfp_attrs.orientation == 'front' else z_for_lim[::-1]
+        z_for_lim = (
+            z_for_lim
+            if vfp.vfp_attrs.orientation == "front"
+            else z_for_lim[::-1]
+        )
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z_for_lim)
-        
+
         ss_condition = vfp.vfp_attrs.spin_state if total_sld else "none"
         sld_to_plot, sld_label = _tot_sld(all_slds, ss_condition)
         alpha = 0.03 if posterior else 1
         sld_to_plot_kwargs = dict(
-            alpha=alpha, 
-            label=None if posterior else sld_label
+            alpha=alpha, label=None if posterior else sld_label
         )
 
-        ax.plot(z,
-                sld_to_plot,
-                color="k",
-                **sld_to_plot_kwargs
-                )
-        
+        ax.plot(z, sld_to_plot, color="k", **sld_to_plot_kwargs)
+
         # plot sldi if any are nonzero.
         if all_slds[:, 1].any():
             plot_sldi_kwargs = dict(
-                alpha=alpha, 
-                label=None if posterior else r"$\mathrm{SLD}_{\mathrm{i}}$"
+                alpha=alpha,
+                label=None if posterior else r"$\mathrm{SLD}_{\mathrm{i}}$",
             )
             ax_twinx = ax.twinx()
             ax_twinx.plot(
-                z, 
-                all_slds[:, 1], 
-                color="tab:red",
-                **plot_sldi_kwargs)
-        
-        # if plotting slds separate & they are non zero.  
+                z, all_slds[:, 1], color="tab:red", **plot_sldi_kwargs
+            )
+
+        # if plotting slds separate & they are non zero.
         if not total_sld and all_slds[:, 2].any():
             plot_sldm_kwargs = dict(
-                alpha=alpha, 
-                label=None if posterior else r"$\mathrm{SLD}_{\mathrm{m}}$"
+                alpha=alpha,
+                label=None if posterior else r"$\mathrm{SLD}_{\mathrm{m}}$",
             )
-            ax.plot(z,
-                    all_slds[:, 2],
-                    color="tab:grey",
-                    **plot_sldm_kwargs
-                    )
-        
+            ax.plot(z, all_slds[:, 2], color="tab:grey", **plot_sldm_kwargs)
+
         if not posterior:
-            # format 
-            if all_slds[:, 1].any(): # format the right-hand side y axis if used.
+            # format
+            if all_slds[
+                :, 1
+            ].any():  # format the right-hand side y axis if used.
                 ax_twinx.set_ylabel(
-                    r"$\mathrm{SLD}_{\mathrm{i}}$ / $\mathrm{\AA{}}^{-2} \times 10^{-6}$",
+                    (
+                        r"$\mathrm{SLD}_{\mathrm{i}}$ / "
+                        r"$\mathrm{\AA{}}^{-2} \times 10^{-6}$",
+                    ),
                     color="tab:red",
                 )
                 ax_twinx.tick_params(axis="y", colors="tab:red")
@@ -118,22 +117,22 @@ class PlotType(StrEnum):
             ax.legend(frameon=False)
             ax.set_ylabel(r"SLD / $\mathrm{\AA{}}^{-2} \times 10^{-6}$")
             ax.set_xlim(def_xlower_lim, def_xupper_lim)
-            
+
     def _plot_vfp(
-        self, 
-        ax: plt.Axes, 
-        vfp: BaseVFP, 
-        posterior: bool, 
-        colours: tuple[tuple[float, float, float], ...] | None = None, 
-        total_vf: bool = True, 
-        labels: list[str] | None = None
+        self,
+        ax: plt.Axes,
+        vfp: BaseVFP,
+        posterior: bool,
+        colours: tuple[tuple[float, float, float], ...] | None = None,
+        total_vf: bool = True,
+        labels: list[str] | None = None,
     ) -> None:
         """
         Plots the vfp profile on a given axis.
-        
-        Notes 
+
+        Notes
         -----
-        When orientation = back, the return from 
+        When orientation = back, the return from
         `vfp.vfs_for_display` values are reversed.
         Want to apply same colours to same material
         if one had two vfps with opposite orientations.
@@ -145,85 +144,103 @@ class PlotType(StrEnum):
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
         posterior : bool
-            Flag to indicate if plotting posterior samples when calling function.
+            Flag to indicate if plotting posterior samples.
         colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot vfp profile. Posterior samples are plotted in
-            every second colour, while the representative profile of each layer
+            every second colour, while the nominal profile of each layer
             is plotted in every odd colour. matplotlib's tab20 is default.
         total_vf : bool, optional.
-            If true, plots the total_vf of the representative profiles by summing
-            across all layers' volume fractions. Defaults to True.
+            If true, plots the total_vf of the representative profiles by
+            summing across all layers' volume fractions. Defaults to True.
         labels : list[str] | None , optional
-            Labels to be applied to the legend of the volume fraction profile plot.
+            Labels to be applied to the legend of the volume fraction profile.
         """
         if labels is None:
             labels = [f"Layer {i}" for i in range(len(vfp.tup_thicks) + 1)]
             labels[0], labels[-1] = "Fronting", "Backing"
-            labels = labels[::-1] if vfp.vfp_attrs.orientation == 'back' else labels
-        colours = colours if colours is not None else matplotlib.colormaps["tab20"].colors
-        
+            labels = (
+                labels[::-1]
+                if vfp.vfp_attrs.orientation == "back"
+                else labels
+            )
+        colours = (
+            colours
+            if colours is not None
+            else matplotlib.colormaps["tab20"].colors
+        )
+
         vfs = vfp.vfs_for_display()[0]
         z = vfp.z_and_sld()[0]
-        z = z if vfp.vfp_attrs.orientation == 'front' else z[::-1]
+        z = z if vfp.vfp_attrs.orientation == "front" else z[::-1]
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
-        
+
         if posterior:
-            if vfp.vfp_attrs.orientation == 'front':
+            if vfp.vfp_attrs.orientation == "front":
                 for i, lay_vfp in enumerate(vfs):
                     ax.plot(
                         z,
                         lay_vfp.T,
                         alpha=0.05,
-                        color=colours[(1+(2*i)) % len(colours)],
-                        zorder=i
+                        color=colours[(1 + (2 * i)) % len(colours)],
+                        zorder=i,
                     )
-            elif vfp.vfp_attrs.orientation == 'back':
+            elif vfp.vfp_attrs.orientation == "back":
                 for i, lay_vfp in enumerate(vfs):
                     ax.plot(
                         z,
                         lay_vfp.T,
                         alpha=0.05,
-                        color=colours[ # reverse colour order.
-                            ((2 * len(vfp.tup_thicks) + 1) - 2 * i) % len(colours)
+                        color=colours[  # reverse colour order.
+                            ((2 * len(vfp.tup_thicks) + 1) - 2 * i)
+                            % len(colours)
                         ],
-                        zorder=len(vfp.tup_thicks) - i
-                    )        
+                        zorder=len(vfp.tup_thicks) - i,
+                    )
         else:
             if vfp.vfp_attrs.orientation == "front":
                 for i, lay_vfp in enumerate(vfs):
-                    ax.plot(z, lay_vfp.T, label=labels[i], zorder=len(vfp.tup_thicks) + i)
+                    ax.plot(
+                        z,
+                        lay_vfp.T,
+                        label=labels[i],
+                        zorder=len(vfp.tup_thicks) + i,
+                    )
 
             elif vfp.vfp_attrs.orientation == "back":
                 for i, lay_vfp in enumerate(vfs):
                     ax.plot(
-                        z, 
+                        z,
                         lay_vfp.T,
                         label=labels[i],
-                        color=colours[ # reverse colour order.
-                            (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)                        
+                        color=colours[  # reverse colour order.
+                            (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
                         ],
-                        zorder=2*len(vfp.tup_thicks) - i
+                        zorder=2 * len(vfp.tup_thicks) - i,
                     )
 
             if total_vf:
                 ax.plot(
-                    z, np.sum(vfs.T, axis=1), label=r"Total", linestyle="--", color="k"
+                    z,
+                    np.sum(vfs.T, axis=1),
+                    label=r"Total",
+                    linestyle="--",
+                    color="k",
                 )
             ax.set_ylabel(r"Volume Fraction")
             ax.set_xlim(def_xlower_lim, def_xupper_lim)
             ax.legend(frameon=False)
-    
+
     def _plot_surfaces(
-        self, 
-        ax: plt.Axes, 
-        vfp: BaseVFP, 
-        surfaces: np.ndarray, 
-        points: int, 
-        colours: tuple[tuple[float, float, float], ...] | None = None
+        self,
+        ax: plt.Axes,
+        vfp: BaseVFP,
+        surfaces: np.ndarray,
+        points: int,
+        colours: tuple[tuple[float, float, float], ...] | None = None,
     ) -> None:
         """
         Plots a stochastic simulation of layers.
-        
+
         Parameters
         ----------
         ax : plt.Axes
@@ -239,28 +256,36 @@ class PlotType(StrEnum):
         """
         n_interf = len(vfp.tup_thicks)
         # get default colours if non specified.
-        colours = matplotlib.colormaps["tab20"].colors if colours is None else colours
+        colours = (
+            matplotlib.colormaps["tab20"].colors
+            if colours is None
+            else colours
+        )
         # reverse and select for fill + points.
-        if vfp.vfp_attrs.orientation == 'front':
-            points_colours = colours[:2*n_interf+1:2]
-            fill_colours = colours[1:2*n_interf+2:2]
+        if vfp.vfp_attrs.orientation == "front":
+            points_colours = colours[: 2 * n_interf + 1 : 2]
+            fill_colours = colours[1 : 2 * n_interf + 2 : 2]
             # zorder should decrease away from fronting:
-            points_zorder = np.arange(start=2*n_interf+1, stop=1, step=-2)
-            fill_zorder = np.arange(start=2*n_interf, stop=-1, step=-2)
+            points_zorder = np.arange(start=2 * n_interf + 1, stop=1, step=-2)
+            fill_zorder = np.arange(start=2 * n_interf, stop=-1, step=-2)
         else:
-            points_colours = colours[:2*n_interf-1:2][::-1] # keep point colour as found in front.
-            fill_colours = colours[1:2*n_interf+2:2][::-1]
+            points_colours = colours[: 2 * n_interf - 1 : 2][
+                ::-1
+            ]  # keep point colour as found in front.
+            fill_colours = colours[1 : 2 * n_interf + 2 : 2][::-1]
             # zorder increase as progress toward fronting.
-            points_zorder = np.arange(start=1, stop=2*n_interf+1, step=2) + 2
-            fill_zorder = np.arange(start=0, stop=2*n_interf+1, step=2)
-        
+            points_zorder = (
+                np.arange(start=1, stop=2 * n_interf + 1, step=2) + 2
+            )
+            fill_zorder = np.arange(start=0, stop=2 * n_interf + 1, step=2)
+
         # attempt to recreate margin that would be found in vfp plot.
         z = vfp.z_and_sld()[0]
-        # flip z if back orientation so that we can define lower and upper lims
+        # flip z if back orientation to define lower and upper lims
         # from first and last z position in array.
-        z = z[::-1] if vfp.vfp_attrs.orientation == 'back' else z
+        z = z[::-1] if vfp.vfp_attrs.orientation == "back" else z
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
-        
+
         # plot surfaces.
         # if vfp.vfp_attrs.orientation == "front":
         for i, j in enumerate(surfaces):  # do the surfaces
@@ -269,9 +294,7 @@ class PlotType(StrEnum):
                 range(0, points),
                 marker=".",
                 zorder=points_zorder[i],
-                color=points_colours[
-                    i % len(points_colours) # loop colours
-                ]
+                color=points_colours[i % len(points_colours)],  # loop colours
             )
 
         for i in range(0, n_interf + 1):  # then do the fills
@@ -281,9 +304,7 @@ class PlotType(StrEnum):
                     x1=def_xlower_lim,
                     x2=surfaces[i],
                     interpolate=True,
-                    color=fill_colours[
-                        i % len(fill_colours)
-                    ],
+                    color=fill_colours[i % len(fill_colours)],
                     zorder=fill_zorder[i],
                 )
 
@@ -294,9 +315,7 @@ class PlotType(StrEnum):
                     x2=surfaces[i],
                     where=surfaces[i] > surfaces[i - 1],
                     interpolate=True,
-                    color=fill_colours[
-                        i % len(fill_colours)
-                    ],
+                    color=fill_colours[i % len(fill_colours)],
                     zorder=fill_zorder[i],
                 )
 
@@ -307,9 +326,7 @@ class PlotType(StrEnum):
                     x2=def_xupper_lim,
                     where=def_xupper_lim > surfaces[i - 1],
                     interpolate=True,
-                    color=fill_colours[
-                        i % len(fill_colours)
-                    ],
+                    color=fill_colours[i % len(fill_colours)],
                     zorder=fill_zorder[i],
                 )
 
@@ -327,7 +344,7 @@ class PlotType(StrEnum):
             ax.spines[border].set_zorder(
                 (len(vfp.tup_thicks) + 1) * 3
             )  # borders will be higher than surfaces and fills.
-    
+
     def plot(self, *args, **kwargs) -> None:
         """
         Wraps specific plot functions depending on PlotType.
@@ -336,12 +353,11 @@ class PlotType(StrEnum):
         if plot_func:
             plot_func(self, *args, **kwargs)
         else:
-            raise NotImplementedError(f"Plot function for {self.value} not implemented.")
-            
-    def _calc_xlims(
-        self,
-        z: np.ndarray
-    ) -> tuple[float, float]:
+            raise NotImplementedError(
+                f"Plot function for {self.value} not implemented."
+            )
+
+    def _calc_xlims(self, z: np.ndarray) -> tuple[float, float]:
         """
         Calculates horizontal limits for axes given `z`.
 
@@ -357,26 +373,29 @@ class PlotType(StrEnum):
         """
         margin = 0.05 * (z[-1] - z[0])
         return z[0] - margin, z[-1] + margin
-    
+
+
 # create a map of PlotType members to plot fns in PlotType.
 plot_dispatch = {
-    PlotType.SLD : PlotType._plot_sld,
-    PlotType.VFP : PlotType._plot_vfp,
-    PlotType.SURFACES : PlotType._plot_surfaces
+    PlotType.SLD: PlotType._plot_sld,
+    PlotType.VFP: PlotType._plot_vfp,
+    PlotType.SURFACES: PlotType._plot_surfaces,
 }
+
 
 class AxesIndex(IntEnum):
     """
     Defines index of multiple axes.
-    
+
     Intended to be created by passing a list of strings
     representing the required plots to
     `AxesIndex.from_requested_plots_list`.
     """
+
     FIRST = 0
     SECOND = auto()
     THIRD = auto()
-    
+
     def __new__(cls, value):
         """
         Create's AxesIndex member with values defined
@@ -387,23 +406,22 @@ class AxesIndex(IntEnum):
         member._value_ = value
         member._plot_type = None
         return member
-    
+
     @property
     def plot_type(self) -> PlotType:
         """
-        The plot type of this axis. 
+        The plot type of this axis.
         Set from the requested plots.
         """
         return self._plot_type
-    
+
     @plot_type.setter
     def plot_type(self, value: PlotType):
         self._plot_type = value
-    
+
     @classmethod
     def from_requested_plots_list(
-        cls, 
-        requested_plots: list[str]
+        cls, requested_plots: list[str]
     ) -> list[AxesIndex]:
         """
         Creates AxesIndex from `requested_plots` list.
@@ -412,7 +430,7 @@ class AxesIndex(IntEnum):
         ----------
         requested_plots : list[str]
             Plots requested. Strings can be all or
-            some combination of "sld", "vfp", 
+            some combination of "sld", "vfp",
             "surfaces".
 
         Returns
@@ -422,20 +440,23 @@ class AxesIndex(IntEnum):
         # all possible plot types
         plot_types_map = {pt.value: pt for pt in PlotType}
         # filter the PlotTypes requested.
-        requested_plot_types = [plot_types_map[plot_name] for plot_name in requested_plots]
+        requested_plot_types = [
+            plot_types_map[plot_name] for plot_name in requested_plots
+        ]
         req_plots_and_axis = []
         for pt in requested_plot_types:
-            axis = cls(requested_plot_types.index(pt)) # create AxesEnum from PlotType.
-            axis.plot_type = pt # set plot_type property to a PlotType
+            axis = cls(
+                requested_plot_types.index(pt)
+            )  # create AxesEnum from PlotType.
+            axis.plot_type = pt  # set plot_type property to a PlotType
             req_plots_and_axis.append(axis)
         return req_plots_and_axis
 
 
-def surfaces_for_display(vfp: BaseVFP, 
-                         points: int = 50) -> np.ndarray:
+def surfaces_for_display(vfp: BaseVFP, points: int = 50) -> np.ndarray:
     """
     Produces 2D array of RVs to describe each interface.
-    
+
     The number of random variates is controlled by `points`.
     Used to create a graphical representation of the modelled interfaces.
 
@@ -472,7 +493,9 @@ def surfaces_for_display(vfp: BaseVFP,
         # insert the conformal interfaces.
         if num_conform > 0:
             for i in idx_where_conformal:
-                interf_arr[i] = np.max(interf_arr[:i].T, axis=1) + vfp.tup_thicks[i]
+                interf_arr[i] = (
+                    np.max(interf_arr[:i].T, axis=1) + vfp.tup_thicks[i]
+                )
 
     elif vfp.vfp_attrs.orientation == "back":
         idx_where_conformal = (vfp.vfp_attrs.conformal == 1).nonzero()[0] - (
@@ -481,10 +504,12 @@ def surfaces_for_display(vfp: BaseVFP,
         if num_conform > 0:
             for i in idx_where_conformal:
                 interf_arr[i] = (
-                    np.min(interf_arr[i + 1 :].T, axis=1) - vfp.tup_thicks[::-1][i]
+                    np.min(interf_arr[i + 1 :].T, axis=1)
+                    - vfp.tup_thicks[::-1][i]
                 )
 
     return interf_arr
+
 
 def model_plot(
     vfp: BaseVFP,
@@ -498,7 +523,7 @@ def model_plot(
 ) -> tuple[matplotlib.figure.Figure, np.ndarray[plt.Axes]]:
     """
     Produces a three axis figure to visualise VFP model.
-    
+
     Top plot = nsld / msld / isld
     Middle plot = volume fraction profiles
     Bottom plot = surface profiles
@@ -518,7 +543,7 @@ def model_plot(
     sld_plot_kwargs : dict | None = None, optional
     vfp_plot_kwargs : dict | None = None, optional
     surface_plot_kwargs : dict | None = None, optional
-    
+
     Returns
     -------
     tuple[matplotlib.figure.Figure, np.ndarray[plt.Axes]]
@@ -526,54 +551,63 @@ def model_plot(
     """
     if points <= 0:
         raise ValueError("points must be > 0.")
-    
+
     # run check on unique vals in plots_required
     possible_plots = ["sld", "vfp", "surfaces"]
     if isinstance(plots_required, list):
         # remove duplicates, but preserve order.
         plots_required = list(dict.fromkeys(plots_required))
-        if not all([
-            ptype in possible_plots for ptype in plots_required
-        ]):
-            raise ValueError(f'Check plots_required only contains "sld", "vfp", "surfaces".')
+        if not all([ptype in possible_plots for ptype in plots_required]):
+            raise ValueError(
+                'Check plots_required only contains "sld", "vfp", "surfaces".'
+            )
     elif plots_required is None:
         plots_required = ["sld", "vfp", "surfaces"]
     else:
-        raise TypeError(f'plots_required must be a list, got {type(required_plots)}.')
-    
+        raise TypeError(
+            f"plots_required must be a list, got {type(plots_required)}."
+        )
+
     # get axes index for required plots.
     axes_enum = AxesIndex.from_requested_plots_list(
         requested_plots=plots_required
     )
-    
-    # add on two additional points to create fill effect on y axis of bottom plot
-    points += 2  
+
+    # add on two additional points to create fill effect on surfaces
+    points += 2
     surfaces = surfaces_for_display(vfp, points=points)
-    
+
     # get original vfp varying_parameter values
     original_ps = copy.deepcopy(vfp.varying_parameters)
 
     # setup fig & axes.
     if fig is None:
         fig, _ = plt.subplots(
-            nrows=len(plots_required), 
-            ncols=1, 
-            sharex=True, 
-            figsize=(8, 3 * len(plots_required))
+            nrows=len(plots_required),
+            ncols=1,
+            sharex=True,
+            figsize=(8, 3 * len(plots_required)),
         )
 
     else:
         for i in range(len(plots_required)):
             fig.add_subplot(len(plots_required), 1, i)
-    
+
     # get ax this way so that its a flat list for 1 or multiple axes.
     ax = fig.axes
 
     # plot posterior samples:
     if posterior_samples is not None:
-        for i in range(list(posterior_samples.values())[0].size):
+        # get length of each set of posterior samples.
+        p_samps_lens = set([len(val) for val in posterior_samples.values()])
+        # check they are the same length.
+        if len(p_samps_lens) != 1:
+            raise ValueError("Posterior samples are of different lengths.")
+
+        length_of_samples = next(iter(p_samps_lens))
+        for i in range(length_of_samples):
             vfp.varying_parameters = {
-                key : values[i] for key, values in posterior_samples.items()
+                key: values[i] for key, values in posterior_samples.items()
             }
             for axis in axes_enum:
                 if axis.plot_type == PlotType.SLD:
@@ -581,14 +615,14 @@ def model_plot(
                 elif axis.plot_type == PlotType.VFP:
                     plot_kwargs = vfp_plot_kwargs
                 elif axis.plot_type == PlotType.SURFACES:
-                    continue # not able to plot posterior for surface plot
+                    continue  # not able to plot posterior for surface plot
                 if plot_kwargs is not None:
                     axis.plot_type.plot(ax[axis], vfp, True, **plot_kwargs)
                 else:
                     axis.plot_type.plot(ax[axis], vfp, True)
-    
-    # plot main profiles.    
-    vfp.varying_parameters = original_ps # set to original values.
+
+    # plot main profiles.
+    vfp.varying_parameters = original_ps  # set to original values.
     for axis in axes_enum:
         # setup partially frozen function as all are common to these args.
         plot_fn = partial(axis.plot_type.plot, ax[axis], vfp, False)
@@ -599,13 +633,16 @@ def model_plot(
         elif axis.plot_type == PlotType.SURFACES:
             plot_kwargs = surface_plot_kwargs
             # redefine plot_fn for surfaces as different args required.
-            plot_fn = partial(axis.plot_type.plot, ax[axis], vfp, surfaces, points)
+            plot_fn = partial(
+                axis.plot_type.plot, ax[axis], vfp, surfaces, points
+            )
         if plot_kwargs is not None:
             plot_fn(**plot_kwargs)
         else:
             plot_fn()
 
     return fig, ax
+
 
 def _gen_sld_profile(
     vfp: BaseVFP,
@@ -628,9 +665,7 @@ def _gen_sld_profile(
     slds = vfp.get_slds()
 
     # get the average between each nuclear and magnetic SLD value.
-    av_slds = [
-        0.5 * np.diff(sld_row) + sld_row[:-1] for sld_row in slds
-        ]
+    av_slds = [0.5 * np.diff(sld_row) + sld_row[:-1] for sld_row in slds]
 
     # init arrays for final slds.
     fin_slds = np.ones_like(slds)
@@ -679,23 +714,26 @@ def _gen_sld_profile(
     stepper = Step()
     # accumulate the sld of each step.
     for i in range(nslices - 1):
-        all_slds += stepper(zed, scale=0, loc=dist[i])[:, None] * delta_all_slds[i]
+        all_slds += (
+            stepper(zed, scale=0, loc=dist[i])[:, None] * delta_all_slds[i]
+        )
 
     return zed, all_slds
+
 
 def _tot_sld(all_slds: np.ndarray, ss: str) -> tuple[np.ndarray, str]:
     """
     Get sld profile for plotting given spin state.
-    
+
     The returned value is the rows of sldn (possibly) +/- sldm.
-    
+
     Parameters
     ----------
     all_slds : np.ndarray
         2D array containing sldn, sldi, sldm.
     ss : str
         Spin state for conditioning which sld is plotted.
-        
+
     Returns
     -------
     tuple[np.ndarray, str]
@@ -710,5 +748,5 @@ def _tot_sld(all_slds: np.ndarray, ss: str) -> tuple[np.ndarray, str]:
     elif ss == "up":
         tot_sld = all_slds[:, 0] + all_slds[:, 2]
         sld_label = r"$\mathrm{SLD}_{\mathrm{n}} + \mathrm{SLD}_{\mathrm{m}}$"
-    
+
     return tot_sld, sld_label
