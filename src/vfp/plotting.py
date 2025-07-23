@@ -2,13 +2,14 @@
 from __future__ import annotations
 import copy
 from enum import IntEnum, StrEnum, auto
-from functools import partial
 from typing import TYPE_CHECKING
 
 # third party
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from refnx.reflect.interface import Step
 from scipy import stats
 
@@ -23,7 +24,7 @@ class PlotType(StrEnum):
 
     def _plot_sld(
         self,
-        ax: plt.Axes,
+        ax: Axes,
         vfp: BaseVFP,
         posterior: bool,
         microslice: bool = True,
@@ -34,7 +35,7 @@ class PlotType(StrEnum):
 
         Parameters
         ----------
-        ax : plt.Axes
+        ax : Axes
             Which axes to plot vfp profile on.
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
@@ -60,11 +61,6 @@ class PlotType(StrEnum):
         # the above return slightly different z lengths
         # use z_and_sld to get lims that match vfp and surfaces.
         z_for_lim, _ = vfp.z_and_sld()
-        z_for_lim = (
-            z_for_lim
-            if vfp.vfp_attrs.orientation == "front"
-            else z_for_lim[::-1]
-        )
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z_for_lim)
 
         ss_condition = vfp.vfp_attrs.spin_state if total_sld else "none"
@@ -120,7 +116,7 @@ class PlotType(StrEnum):
 
     def _plot_vfp(
         self,
-        ax: plt.Axes,
+        ax: Axes,
         vfp: BaseVFP,
         posterior: bool,
         colours: tuple[tuple[float, float, float], ...] | None = None,
@@ -139,7 +135,7 @@ class PlotType(StrEnum):
 
         Parameters
         ----------
-        ax : plt.Axes
+        ax : Axes
             Which axes to plot vfp profile on.
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
@@ -171,15 +167,13 @@ class PlotType(StrEnum):
 
         vfs = vfp.vfs_for_display()[0]
         z = vfp.z_and_sld()[0]
-        z = z if vfp.vfp_attrs.orientation == "front" else z[::-1]
-        def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
-
+        xlower_lim, xupper_lim = self._calc_xlims(z)
         if posterior:
             if vfp.vfp_attrs.orientation == "front":
                 for i, lay_vfp in enumerate(vfs):
                     ax.plot(
                         z,
-                        lay_vfp.T,
+                        lay_vfp,
                         alpha=0.05,
                         color=colours[(1 + (2 * i)) % len(colours)],
                         zorder=i,
@@ -188,7 +182,7 @@ class PlotType(StrEnum):
                 for i, lay_vfp in enumerate(vfs):
                     ax.plot(
                         z,
-                        lay_vfp.T,
+                        lay_vfp,
                         alpha=0.05,
                         color=colours[  # reverse colour order.
                             ((2 * len(vfp.tup_thicks) + 1) - 2 * i)
@@ -201,7 +195,7 @@ class PlotType(StrEnum):
                 for i, lay_vfp in enumerate(vfs):
                     ax.plot(
                         z,
-                        lay_vfp.T,
+                        lay_vfp,
                         label=labels[i],
                         zorder=len(vfp.tup_thicks) + i,
                     )
@@ -210,7 +204,7 @@ class PlotType(StrEnum):
                 for i, lay_vfp in enumerate(vfs):
                     ax.plot(
                         z,
-                        lay_vfp.T,
+                        lay_vfp,
                         label=labels[i],
                         color=colours[  # reverse colour order.
                             (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
@@ -221,18 +215,18 @@ class PlotType(StrEnum):
             if total_vf:
                 ax.plot(
                     z,
-                    np.sum(vfs.T, axis=1),
+                    np.sum(vfs, axis=0),
                     label=r"Total",
                     linestyle="--",
                     color="k",
                 )
             ax.set_ylabel(r"Volume Fraction")
-            ax.set_xlim(def_xlower_lim, def_xupper_lim)
+            ax.set_xlim(xlower_lim, xupper_lim)
             ax.legend(frameon=False)
 
     def _plot_surfaces(
         self,
-        ax: plt.Axes,
+        ax: Axes,
         vfp: BaseVFP,
         surfaces: np.ndarray,
         points: int,
@@ -243,7 +237,7 @@ class PlotType(StrEnum):
 
         Parameters
         ----------
-        ax : plt.Axes
+        ax : Axes
             Which axes to plot vfp profile on.
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
@@ -281,9 +275,6 @@ class PlotType(StrEnum):
 
         # attempt to recreate margin that would be found in vfp plot.
         z = vfp.z_and_sld()[0]
-        # flip z if back orientation to define lower and upper lims
-        # from first and last z position in array.
-        z = z[::-1] if vfp.vfp_attrs.orientation == "back" else z
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
 
         # plot surfaces.
@@ -361,6 +352,10 @@ class PlotType(StrEnum):
         """
         Calculates horizontal limits for axes given `z`.
 
+        `z` maybe in ascending or descending order, so the tuple
+        is sorted before being returned to ensure lower lim is
+        always lower.
+
         Parameters
         ----------
         z : np.ndarray
@@ -372,7 +367,8 @@ class PlotType(StrEnum):
             Lower and upper x limits
         """
         margin = 0.05 * (z[-1] - z[0])
-        return z[0] - margin, z[-1] + margin
+        lims = z[0] - margin, z[-1] + margin
+        return sorted(lims)
 
 
 # create a map of PlotType members to plot fns in PlotType.
@@ -516,17 +512,22 @@ def model_plot(
     points: int = 50,
     posterior_samples: dict[str, np.ndarray] | None = None,
     plots_required: list[str] | None = None,
-    fig: matplotlib.figure.Figure | None = None,
+    fig: Figure | None = None,
     sld_plot_kwargs: dict | None = None,
     vfp_plot_kwargs: dict | None = None,
     surface_plot_kwargs: dict | None = None,
-) -> tuple[matplotlib.figure.Figure, np.ndarray[plt.Axes]]:
+) -> tuple[Figure, Axes]:
     """
-    Produces a three axis figure to visualise VFP model.
+    Makes a one to three axis figure to visualise VFP model.
 
+    By default the order of the plots are:
     Top plot = nsld / msld / isld
     Middle plot = volume fraction profiles
     Bottom plot = surface profiles
+
+    Plots can be selected by using `plots_required`, and the vertical
+    order of the axes be changed by altering the order of the plot names
+    in `plots_required`.
 
     Parameters
     ----------
@@ -539,14 +540,17 @@ def model_plot(
     plots_required : list[str] | None, optional
         A list of "sld", "vfp" and "surfaces".
         Order in the list will affect the order of the plots.
-    fig : matplotlib.figure.Figure | None = None,
+    fig : Figure | None = None,
     sld_plot_kwargs : dict | None = None, optional
+        kwargs to be passed to PlotType._plot_sld.
     vfp_plot_kwargs : dict | None = None, optional
+        kwargs to be passed to PlotType._plot_vfp.
     surface_plot_kwargs : dict | None = None, optional
+        kwargs to be passed to PlotType._plot_surfaces.
 
     Returns
     -------
-    tuple[matplotlib.figure.Figure, np.ndarray[plt.Axes]]
+    tuple[Figure, Axes]
         matplotlib.pyplot figure and axes objects.
     """
     if points <= 0:
@@ -623,23 +627,21 @@ def model_plot(
 
     # plot main profiles.
     vfp.varying_parameters = original_ps  # set to original values.
+    kwarg_map = {
+        PlotType.SLD: sld_plot_kwargs,
+        PlotType.VFP: vfp_plot_kwargs,
+        PlotType.SURFACES: surface_plot_kwargs,
+    }
+    plot_fn_args_map = {
+        PlotType.SLD: (vfp, False),
+        PlotType.VFP: (vfp, False),
+        PlotType.SURFACES: (vfp, surfaces, points),
+    }
     for axis in axes_enum:
-        # setup partially frozen function as all are common to these args.
-        plot_fn = partial(axis.plot_type.plot, ax[axis], vfp, False)
-        if axis.plot_type == PlotType.SLD:
-            plot_kwargs = sld_plot_kwargs
-        elif axis.plot_type == PlotType.VFP:
-            plot_kwargs = vfp_plot_kwargs
-        elif axis.plot_type == PlotType.SURFACES:
-            plot_kwargs = surface_plot_kwargs
-            # redefine plot_fn for surfaces as different args required.
-            plot_fn = partial(
-                axis.plot_type.plot, ax[axis], vfp, surfaces, points
-            )
-        if plot_kwargs is not None:
-            plot_fn(**plot_kwargs)
-        else:
-            plot_fn()
+        plot_args = plot_fn_args_map.get(axis.plot_type)
+        plot_kwargs = kwarg_map.get(axis.plot_type)
+        plot_kwargs = plot_kwargs if plot_kwargs is not None else {}
+        axis.plot_type.plot(ax[axis], *plot_args, **plot_kwargs)
 
     return fig, ax
 
