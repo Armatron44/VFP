@@ -342,7 +342,7 @@ class BaseVFP(ABC):
         if self.vfp_attrs.orientation == "front":
             slds = self.get_slds(reduced=reduced)
 
-        # if reverse orientation, subtract length of inteface & flip.
+        # if reverse orientation, subtract length of interface & flip.
         if self.vfp_attrs.orientation == "back":
             slds = self.get_slds(reduced=reduced)
             offset = np.sum(self.tup_thicks)
