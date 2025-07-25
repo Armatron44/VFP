@@ -2,7 +2,7 @@
 from __future__ import annotations
 import copy
 from enum import IntEnum, StrEnum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 # third party
 import matplotlib
@@ -449,7 +449,11 @@ class AxesIndex(IntEnum):
         return req_plots_and_axis
 
 
-def surfaces_for_display(vfp: BaseVFP, points: int = 50) -> np.ndarray:
+def surfaces_for_display(
+    vfp: BaseVFP, 
+    points: int, 
+    rng: np.random.Generator
+) -> np.ndarray:
     """
     Produces 2D array of RVs to describe each interface.
 
@@ -462,12 +466,15 @@ def surfaces_for_display(vfp: BaseVFP, points: int = 50) -> np.ndarray:
         Object which describes the interface.
     points : integer
         Number of points to simulate across the surfaces.
+    rng : np.random.Generator
+        An initialised pseudo random number generator. 
 
     Returns
     -------
     np.array
         2d array of shape = (Nlayers - 1, points)
     """
+    
     interf_loc = np.cumsum(vfp.tup_thicks)
     roughs = vfp.tup_roughs
 
@@ -481,7 +488,10 @@ def surfaces_for_display(vfp: BaseVFP, points: int = 50) -> np.ndarray:
     # return the non-conformal interfaces.
     for i in range(interf_arr.shape[0]):
         interf_arr[i] = stats.norm.rvs(
-            loc=interf_loc[i], scale=float(roughs[i]), size=points
+            loc=interf_loc[i],
+            scale=float(roughs[i]),
+            size=points,
+            random_state=rng
         )
 
     if vfp.vfp_attrs.orientation == "front":
@@ -509,68 +519,55 @@ def surfaces_for_display(vfp: BaseVFP, points: int = 50) -> np.ndarray:
 
 def model_plot(
     vfp: BaseVFP,
-    points: int = 50,
-    posterior_samples: dict[str, np.ndarray] | None = None,
-    plots_required: list[str] | None = None,
-    fig: Figure | None = None,
-    sld_plot_kwargs: dict | None = None,
-    vfp_plot_kwargs: dict | None = None,
-    surface_plot_kwargs: dict | None = None,
-) -> tuple[Figure, Axes]:
+    plots_required: list[Literal["sld", "vfp", "surfaces"]],
+    posterior_samples: dict[str, np.ndarray] | None,
+    surface_points: int,
+    surface_rng: np.random.Generator,
+    fig: Figure | None,
+    sld_plot_kwargs: dict | None,
+    vfp_plot_kwargs: dict | None,
+    surface_plot_kwargs: dict | None,
+) -> tuple[Figure, Axes | np.ndarray[Axes]]:
     """
-    Makes a one to three axis figure to visualise VFP model.
-
-    By default the order of the plots are:
-    Top plot = nsld / msld / isld
-    Middle plot = volume fraction profiles
-    Bottom plot = surface profiles
-
-    Plots can be selected by using `plots_required`, and the vertical
-    order of the axes be changed by altering the order of the plot names
-    in `plots_required`.
+    Visualises the vfp model.
+    
+    See vfp.basevfp.plot for extended details.
 
     Parameters
     ----------
     vfp : BaseVFP
         The VFP object which describes the interface.
-    points : integer
-        Number of points to simulate across the surfaces.
-    posterior_samples : dict[str, np.ndarray] | None, optional
-        If supplied, will plot the posterior profiles.
-    plots_required : list[str] | None, optional
-        A list of "sld", "vfp" and "surfaces".
-        Order in the list will affect the order of the plots.
-    fig : Figure | None = None,
-    sld_plot_kwargs : dict | None = None, optional
-        kwargs to be passed to PlotType._plot_sld.
-    vfp_plot_kwargs : dict | None = None, optional
-        kwargs to be passed to PlotType._plot_vfp.
-    surface_plot_kwargs : dict | None = None, optional
-        kwargs to be passed to PlotType._plot_surfaces.
+    plots_required : list[Literal["sld", "vfp", "surfaces"]]
+        A list of plots required. Possible acceptable string values are
+        "sld", "vfp", "surfaces". The order of the strings in the list
+        will affect the order of the plot. Duplicates will be ignored.
+    posterior_samples : dict[str, np.ndarray] | None
+        Samples from the posterior to plot in the "sld" and "vfp" plots.
+        The keys should match the names of varying parameters in the vfp.
+        Array values should be 1D of parameter values.
+        If None, no posterior samples will be plotted.
+    surface_points : integer
+        Number of points to simulate across each interface.
+    surface_rng : np.random.Generator
+        Random number generator for producing draws from each interface's
+        modelled distribution.
+    fig : Figure | None
+        If supplied, plots will be plotted on `fig`. If None, a new Figure
+        will be created.
+    sld_plot_kwargs : dict | None
+        Kwargs to be passed to PlotType._plot_sld.
+    vfp_plot_kwargs : dict | None
+        Kwargs to be passed to PlotType._plot_vfp.
+    surface_plot_kwargs : dict | None
+        Kwargs to be passed to PlotType._plot_surfaces.
 
     Returns
     -------
-    tuple[Figure, Axes]
-        matplotlib.pyplot figure and axes objects.
+    tuple[Figure, Axes | np.ndarray[Axes]]
+        Figure and axes objects.
     """
-    if points <= 0:
-        raise ValueError("points must be > 0.")
-
-    # run check on unique vals in plots_required
-    possible_plots = ["sld", "vfp", "surfaces"]
-    if isinstance(plots_required, list):
-        # remove duplicates, but preserve order.
-        plots_required = list(dict.fromkeys(plots_required))
-        if not all([ptype in possible_plots for ptype in plots_required]):
-            raise ValueError(
-                'Check plots_required only contains "sld", "vfp", "surfaces".'
-            )
-    elif plots_required is None:
-        plots_required = ["sld", "vfp", "surfaces"]
-    else:
-        raise TypeError(
-            f"plots_required must be a list, got {type(plots_required)}."
-        )
+    if surface_points <= 0:
+        raise ValueError("surface_points must be > 0.")
 
     # get axes index for required plots.
     axes_enum = AxesIndex.from_requested_plots_list(
@@ -578,8 +575,8 @@ def model_plot(
     )
 
     # add on two additional points to create fill effect on surfaces
-    points += 2
-    surfaces = surfaces_for_display(vfp, points=points)
+    surface_points += 2
+    surfaces = surfaces_for_display(vfp, surface_points, surface_rng)
 
     # get original vfp varying_parameter values
     original_ps = copy.deepcopy(vfp.varying_parameters)
@@ -599,6 +596,13 @@ def model_plot(
 
     # get ax this way so that its a flat list for 1 or multiple axes.
     ax = fig.axes
+    
+    # create maps for kwargs that can be passed to plot_type.plot.
+    kwarg_map = {
+        PlotType.SLD: sld_plot_kwargs,
+        PlotType.VFP: vfp_plot_kwargs,
+        PlotType.SURFACES: surface_plot_kwargs,
+    }
 
     # plot posterior samples:
     if posterior_samples is not None:
@@ -607,6 +611,11 @@ def model_plot(
         # check they are the same length.
         if len(p_samps_lens) != 1:
             raise ValueError("Posterior samples are of different lengths.")
+        
+        plot_fn_args_map_posterior = {
+            PlotType.SLD: (vfp, True),
+            PlotType.VFP: (vfp, True)
+        }
 
         length_of_samples = next(iter(p_samps_lens))
         for i in range(length_of_samples):
@@ -614,29 +623,23 @@ def model_plot(
                 key: values[i] for key, values in posterior_samples.items()
             }
             for axis in axes_enum:
-                if axis.plot_type == PlotType.SLD:
-                    plot_kwargs = sld_plot_kwargs
-                elif axis.plot_type == PlotType.VFP:
-                    plot_kwargs = vfp_plot_kwargs
-                elif axis.plot_type == PlotType.SURFACES:
-                    continue  # not able to plot posterior for surface plot
-                if plot_kwargs is not None:
-                    axis.plot_type.plot(ax[axis], vfp, True, **plot_kwargs)
-                else:
-                    axis.plot_type.plot(ax[axis], vfp, True)
+                # can't plot a posterior on the surfaces plot.
+                if axis.plot_type == PlotType.SURFACES:
+                    continue
+                plot_args = plot_fn_args_map_posterior.get(axis.plot_type)
+                plot_kwargs = kwarg_map.get(axis.plot_type)
+                plot_kwargs = plot_kwargs if plot_kwargs is not None else {}
+                axis.plot_type.plot(ax[axis], *plot_args, **plot_kwargs)
 
     # plot main profiles.
     vfp.varying_parameters = original_ps  # set to original values.
-    kwarg_map = {
-        PlotType.SLD: sld_plot_kwargs,
-        PlotType.VFP: vfp_plot_kwargs,
-        PlotType.SURFACES: surface_plot_kwargs,
-    }
+    
     plot_fn_args_map = {
         PlotType.SLD: (vfp, False),
         PlotType.VFP: (vfp, False),
-        PlotType.SURFACES: (vfp, surfaces, points),
+        PlotType.SURFACES: (vfp, surfaces, surface_points)
     }
+
     for axis in axes_enum:
         plot_args = plot_fn_args_map.get(axis.plot_type)
         plot_kwargs = kwarg_map.get(axis.plot_type)
@@ -644,7 +647,6 @@ def model_plot(
         axis.plot_type.plot(ax[axis], *plot_args, **plot_kwargs)
 
     return fig, ax
-
 
 def _gen_sld_profile(
     vfp: BaseVFP,
