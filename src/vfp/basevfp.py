@@ -7,7 +7,8 @@ from typing import Callable, Literal
 
 # third party
 import numpy as np
-import matplotlib
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 # this package
 from vfp.calc import calc_dzs, calc_zeds, init_demag, integrate_vfp, calc_vfp
@@ -404,64 +405,91 @@ class BaseVFP(ABC):
 
     def plot(
         self,
-        points: int = 50,
+        plots_required: list[Literal["sld", "vfp", "surfaces"]] | None = None,
         posterior_samples: dict[str, np.ndarray] | None = None,
-        plots_required: list[str] | None = None,
-        fig: matplotlib.figure.Figure | None = None,
+        surface_points: int = 50,
+        surface_rng: np.random.Generator | None = None,
+        fig: Figure | None = None,
         sld_plot_kwargs: dict | None = None,
         vfp_plot_kwargs: dict | None = None,
         surface_plot_kwargs: dict | None = None,
-    ) -> tuple[
-        matplotlib.figure.Figure, 
-        np.ndarray[matplotlib.axes._axes.Axes]
-    ]:
+    ) -> tuple[Figure, Axes | np.ndarray[Axes]]:
         """
-        Produces a three axis figure to visualise the VFP.
+        Makes a one to three axis figure to visualise VFP model.
         
-        Top plot = nsld / msld / isld
-        Middle plot = volume fraction profiles
-        Bottom plot = surface profiles
-        
-        Notes
-        -----
-        If `vfp.orientation` = 'back', then the incident
-        radiation was brought in through the backing.
-        The sld plot will be flipped if orientation is back.
-        The vfp will be flipped if back. The default colours
-        will be applied in reverse to follow front orientations.
-        Similarly, the default labels are reversed.
+        By default the order of the plots are:
+            Top plot = nsld / msld / isld
+            Middle plot = volume fraction profiles
+            Bottom plot = surface profiles
+        This can be altered by specifying a different order in
+        `plots_required`.
 
         Parameters
         ----------
-        points : integer
-            Number of points to simulate across the surfaces.
-        posterior_samples : dict[str, np.ndarray]
-            Samples from the posterior to plot.
-            The keys should match the names of varying parameters in the vfp.
-            The array should be 1D array of parameter values.
-            If the first axis is large (say > 300), this will take some time.
-        plots_required : list[str]
+        plots_required : list[Literal["sld", "vfp", "surfaces"]] | None, optional
             A list of plots required. Possible acceptable string values are
             "sld", "vfp", "surfaces". The order of the strings in the list
-            will affect the order of the plot.
-        fig : matplotlib.figure.Figure | None = None,
-        sld_plot_kwargs : dict | None = None,
-        vfp_plot_kwargs : dict | None = None,
-        surface_plot_kwargs : dict | None = None,
-
+            will affect the order of the plot. Duplicates will be ignored.
+        posterior_samples : dict[str, np.ndarray] | None, optional
+            Samples from the posterior to plot in the "sld" and "vfp" plots.
+            The keys should match the names of varying parameters in the vfp.
+            Array values should be 1D of parameter values.
+            By default is None.
+        surface_points : integer, optional
+            Number of points to simulate across each interface. By default, 50.
+        surface_rng : np.random.Generator | None, optional
+            Random number generator for producing draws from each interface's
+            modelled distribution. If supplied, will generate deterministic
+            draws so that the results are repeatable. If not supplied, a 
+            random seed will be set when calling this function.
+        fig : Figure | None, optional.
+            If supplied, plots will be plotted on `fig`. By default a new Figure
+            will be created.
+        sld_plot_kwargs : dict | None, optional
+            Kwargs to be passed to vfp.plotting.PlotType._plot_sld.
+            By default None.
+        vfp_plot_kwargs : dict | None, optional
+            Kwargs to be passed to vfp.plotting.PlotType._plot_vfp.
+            By default None.
+        surface_plot_kwargs : dict | None, optional
+            Kwargs to be passed to vfp.plotting.PlotType._plot_surfaces.
+            By default None.
+        
         Returns
         -------
-        fig, ax
-            matplotlib.pyplot figure and axes objects.
+        tuple[Figure, Axes | np.ndarray[Axes]]
+            Figure and axes objects.
         """
         # update the model. Captures instances where parameters have changed.
         self.process_model()
+        
+        # run check on unique vals in plots_required
+        possible_plots = ["sld", "vfp", "surfaces"]
+        if isinstance(plots_required, list):
+            # remove duplicates, but preserve order.
+            plots_required = list(dict.fromkeys(plots_required))
+            if not all([ptype in possible_plots for ptype in plots_required]):
+                raise ValueError(
+                    'Check plots_required only contains "sld", "vfp", "surfaces".'
+                )
+        elif plots_required is None:
+            plots_required = ["sld", "vfp", "surfaces"]
+        else:
+            raise TypeError(
+                f"plots_required must be a list, got {type(plots_required)}."
+            )
+        
+        surface_rng = (
+            surface_rng if surface_rng is not None
+            else np.random.default_rng()
+        )
 
         fig, ax = model_plot(
             vfp=self,
-            points=points,
-            posterior_samples=posterior_samples,
             plots_required=plots_required,
+            posterior_samples=posterior_samples,
+            surface_points=surface_points,
+            surface_rng=surface_rng,
             fig=fig,
             sld_plot_kwargs=sld_plot_kwargs,
             vfp_plot_kwargs=vfp_plot_kwargs,
