@@ -20,6 +20,14 @@ repos:
       - id: trailing-whitespace # Removes trailing whitespace at the end of lines
       - id: end-of-file-fixer   # Ensures a single newline at the end of files
 
+  # need ruff before black or isort as output may need reformatting.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: ruff
+        types_or: [ python, pyi ] # don't run ruff on notebooks.
+        args: [--fix, --exit-non-zero-on-fix] # will run fix if specified here.
+
   - repo: https://github.com/psf/black
     rev: 24.10.0
     hooks:
@@ -30,9 +38,3 @@ repos:
     hooks:
       - id: isort
         name: isort (python)
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.3
-    hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix] # will run fix if specified here.
