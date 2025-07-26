@@ -1,5 +1,6 @@
 # standard
 from __future__ import annotations
+
 import copy
 from enum import IntEnum, StrEnum, auto
 from typing import TYPE_CHECKING, Literal
@@ -114,7 +115,7 @@ class PlotType(StrEnum):
             ax.set_ylabel(r"SLD / $\mathrm{\AA{}}^{-2} \times 10^{-6}$")
             ax.set_xlim(def_xlower_lim, def_xupper_lim)
 
-    def _plot_vfp(
+    def _plot_vfp(  # noqa: PLR0913
         self,
         ax: Axes,
         vfp: BaseVFP,
@@ -450,9 +451,7 @@ class AxesIndex(IntEnum):
 
 
 def surfaces_for_display(
-    vfp: BaseVFP, 
-    points: int, 
-    rng: np.random.Generator
+    vfp: BaseVFP, points: int, rng: np.random.Generator
 ) -> np.ndarray:
     """
     Produces 2D array of RVs to describe each interface.
@@ -467,14 +466,14 @@ def surfaces_for_display(
     points : integer
         Number of points to simulate across the surfaces.
     rng : np.random.Generator
-        An initialised pseudo random number generator. 
+        An initialised pseudo random number generator.
 
     Returns
     -------
     np.array
         2d array of shape = (Nlayers - 1, points)
     """
-    
+
     interf_loc = np.cumsum(vfp.tup_thicks)
     roughs = vfp.tup_roughs
 
@@ -491,7 +490,7 @@ def surfaces_for_display(
             loc=interf_loc[i],
             scale=float(roughs[i]),
             size=points,
-            random_state=rng
+            random_state=rng,
         )
 
     if vfp.vfp_attrs.orientation == "front":
@@ -517,7 +516,7 @@ def surfaces_for_display(
     return interf_arr
 
 
-def model_plot(
+def model_plot(  # noqa: PLR0913
     vfp: BaseVFP,
     plots_required: list[Literal["sld", "vfp", "surfaces"]],
     posterior_samples: dict[str, np.ndarray] | None,
@@ -530,7 +529,7 @@ def model_plot(
 ) -> tuple[Figure, Axes | np.ndarray[Axes]]:
     """
     Visualises the vfp model.
-    
+
     See vfp.basevfp.plot for extended details.
 
     Parameters
@@ -596,7 +595,7 @@ def model_plot(
 
     # get ax this way so that its a flat list for 1 or multiple axes.
     ax = fig.axes
-    
+
     # create maps for kwargs that can be passed to plot_type.plot.
     kwarg_map = {
         PlotType.SLD: sld_plot_kwargs,
@@ -611,10 +610,10 @@ def model_plot(
         # check they are the same length.
         if len(p_samps_lens) != 1:
             raise ValueError("Posterior samples are of different lengths.")
-        
+
         plot_fn_args_map_posterior = {
             PlotType.SLD: (vfp, True),
-            PlotType.VFP: (vfp, True)
+            PlotType.VFP: (vfp, True),
         }
 
         length_of_samples = next(iter(p_samps_lens))
@@ -633,11 +632,11 @@ def model_plot(
 
     # plot main profiles.
     vfp.varying_parameters = original_ps  # set to original values.
-    
+
     plot_fn_args_map = {
         PlotType.SLD: (vfp, False),
         PlotType.VFP: (vfp, False),
-        PlotType.SURFACES: (vfp, surfaces, surface_points)
+        PlotType.SURFACES: (vfp, surfaces, surface_points),
     }
 
     for axis in axes_enum:
@@ -647,6 +646,7 @@ def model_plot(
         axis.plot_type.plot(ax[axis], *plot_args, **plot_kwargs)
 
     return fig, ax
+
 
 def _gen_sld_profile(
     vfp: BaseVFP,
