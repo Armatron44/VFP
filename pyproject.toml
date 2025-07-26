@@ -2,7 +2,7 @@
 name = "vfp"
 version = "0.2.0"
 description = "Calculate neutron and x-ray reflectivity profiles via physical volume fraction profiles."
-authors = ["Alexander Armstrong <sandyjoarmstrong@hotmail.com>", 
+authors = ["Alexander Armstrong <sandyjoarmstrong@hotmail.com>",
            "Rebecca Welbourn"]
 license = "BSD 3-Clause"
 readme = "README.md"
@@ -28,6 +28,8 @@ sphinx-rtd-theme = "^3.0.2"
 deptry = "^0.23.0"
 sphinx-math-dollar = "^1.2.1"
 pathos = "^0.3.4"
+pre-commit = "^4.2.0"
+isort = "^6.0.1"
 
 [tool.poetry.group.refnx.dependencies]
 refnx = {version = ">=0.1.51", optional = true}
