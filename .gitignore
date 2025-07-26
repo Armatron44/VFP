@@ -26,7 +26,6 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-poetry.lock
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -141,8 +140,3 @@ dmypy.json
 
 # MacOS
 .DS_Store
-
-# user ignores.
-testing/
-src/vfp/Testing/
-src/vfp/Example_for_BM/

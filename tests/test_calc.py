@@ -1,25 +1,27 @@
 import numpy as np
-from numpy.testing import assert_allclose
 import scipy
+from numpy.testing import assert_allclose
 
 from vfp.calc import (
+    MICROSLICE_EQUIVALENCE_THRESHOLD,
+    calc_dzs,
+    calc_vfp,
+    calc_zeds,
     consecutive,
     get_demag,
-    calc_dzs,
-    calc_zeds,
     init_demag,
-    calc_vfp,
-    one_minus_cdf,
     integrate_vfp,
+    one_minus_cdf,
 )
+
 
 def init_standard_sample():
     # set up some quick standard test parameters.
     # 4 layers + use some non-integer values.
     lot = [0, 19.7, 50, 30]
     lor = [3.1, 5, 7.3, 6]
-    nSLDs = [0, 6, 4, 3.47, 2.07]
-    mSLDs = [0, 0, 3, 0, 0]
+    nslds = [0, 6, 4, 3.47, 2.07]
+    mslds = [0, 0, 3, 0, 0]
     locs = [1, 25]
     widths = [1, 5]
     conformal = [0, 0, 0, 0]
@@ -27,8 +29,8 @@ def init_standard_sample():
     dict_res = {
         "thicks": lot,
         "roughs": lor,
-        "nSLDs": nSLDs,
-        "mSLDs": mSLDs,
+        "nslds": nslds,
+        "mslds": mslds,
         "locs": locs,
         "widths": widths,
         "conformal": conformal,
@@ -36,11 +38,13 @@ def init_standard_sample():
 
     return dict_res
 
+
 def test_consecutive():
     arr_test = np.array([1, 2, 3, 5, 6, 7])
     consec_list = consecutive(arr_test)
     expected_output = [np.array([1, 2, 3]), np.array([5, 6, 7])]
     assert_allclose(consec_list, expected_output)
+
 
 def test_calc_dzs():
     dz = calc_dzs(
@@ -55,6 +59,7 @@ def test_calc_dzs():
     # (54 - 49) * 0.5 = 2.5
     expected_output[45] = 2.5
     assert_allclose(dz, expected_output)
+
 
 def test_one_minus_cdf():
     sample_dict = init_standard_sample()
@@ -111,6 +116,7 @@ def test_one_minus_cdf():
 
     assert_allclose(real_output, expected_output)
 
+
 def test_init_demag():
     sample_dict = init_standard_sample()
 
@@ -145,12 +151,12 @@ def test_init_demag():
     res = init_demag(
         locs=tuple(sample_dict["locs"]),
         widths=tuple(sample_dict["widths"]),
-        mSLDs=tuple(sample_dict["mSLDs"]),
+        mslds=tuple(sample_dict["mslds"]),
         zeds=tuple(np.linspace(-17.5, 134, 304)),
         vfp=tuple(tuple(i) for i in expected_vfp),
     )
 
-    expected_demag_arr = np.ones(shape=(len(sample_dict["mSLDs"]), 304))
+    expected_demag_arr = np.ones(shape=(len(sample_dict["mslds"]), 304))
     expected_demag_arr[2] = 1 - (
         scipy.stats.norm.cdf(np.linspace(-17.5, 134, 304), loc=1, scale=1)
         * (
@@ -161,7 +167,10 @@ def test_init_demag():
         )
     )
     exp_mag_comp = expected_vfp * expected_demag_arr
-    difference_arr = np.abs(np.diff(exp_mag_comp, axis=1)) < 1e-5
+    difference_arr = (
+        np.abs(np.diff(exp_mag_comp, axis=1))
+        < MICROSLICE_EQUIVALENCE_THRESHOLD
+    )
     reduce_diff_arr = np.all(difference_arr, axis=0)
     indices_full = np.nonzero(reduce_diff_arr)
 
@@ -177,6 +186,7 @@ def test_init_demag():
     assert_allclose(res[2], expected_idx)
     assert_allclose(res[3], expected_demag_arr)
 
+
 def test_calc_zeds():
     sample_dict = init_standard_sample()
     zeds = calc_zeds(
@@ -186,6 +196,7 @@ def test_calc_zeds():
     )
     expected_output = np.linspace(-17.5, 134, 304)
     assert_allclose(zeds, expected_output)
+
 
 def test_calc_vfp():
     sample_dict = init_standard_sample()
@@ -238,7 +249,10 @@ def test_calc_vfp():
         )
     )
 
-    assert_allclose(vfp_res, expected_output, atol=np.finfo(float).eps, rtol=0)
+    assert_allclose(
+        vfp_res, expected_output, atol=np.finfo(float).eps, rtol=0
+    )
+
 
 def test_get_demag():
     zed = np.linspace(-17.5, 134, 304)
@@ -250,9 +264,8 @@ def test_get_demag():
     real_output = get_demag(
         dist=zed, locs=np.array([1, 25]), widths=np.array([1, 5])
     )
-    expected_output = (
-        scipy.stats.norm.cdf(zed, loc=1, scale=1)
-        * (1 - scipy.stats.norm.cdf(zed, loc=1 + 25, scale=5))
+    expected_output = scipy.stats.norm.cdf(zed, loc=1, scale=1) * (
+        1 - scipy.stats.norm.cdf(zed, loc=1 + 25, scale=5)
     )
     assert_allclose(real_output, expected_output)
     # test 2 set of widths and locs.
@@ -272,6 +285,7 @@ def test_get_demag():
     expected_output = peak1 + peak2
     assert_allclose(real_output, expected_output)
 
+
 def test_integrate_vfp():
     zed = np.linspace(-10, 10, 10001)
     first_peak = scipy.stats.norm.pdf(zed, loc=0, scale=1)
@@ -279,10 +293,7 @@ def test_integrate_vfp():
     vfps = np.vstack((first_peak, second_peak))
     vfps = tuple(tuple(i) for i in vfps)
     first_res, second_res = integrate_vfp(
-        zeds=tuple(zed),
-        indexs=(),
-        red_vfps=vfps,
-        layer_indices=tuple([0, 1])
+        zeds=tuple(zed), indexs=(), red_vfps=vfps, layer_indices=tuple([0, 1])
     )
     first_expected, second_expected = (1, 4)
     assert_allclose(first_res, first_expected)

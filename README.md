@@ -30,48 +30,46 @@ We can build a simple model with the following:
 
 ```python
 import matplotlib.pyplot as plt
-import vfp
+from vfp import VFP
 
-# fronting thickness = 0 (not $\infty$ here) 
-# layer 1 thickness = 20 
+# fronting thickness = 0 (not $\infty$ here)
+# layer 1 thickness = 20
 # layer 2 thickness = 30.
 thicknesses = (0, 20, 30)
 
-# interfacial width between 0 and 1 = 2, 
-# between 1 & 2 = 4, 
+# interfacial width between 0 and 1 = 2,
+# between 1 & 2 = 4,
 # between 2 & backing = 6
 roughnesses = (2, 4, 6)
 
 # slds of Si, SiO2, Surfactant, D2O
 slds = (2.07, 3.47, 0.21, 6.37)
 
-# create a refnxVFP object.
-vfp = vfp.refnxVFP(slds, thicknesses, roughnesses)
+# create a VFP object.
+vfp = VFP(slds, thicknesses, roughnesses)
 
 # plot SLD, volume fraction proflie & stochastic model of interface.
 vfp.plot()
 plt.show()
 ```
 
-The `vfp.refnxVFP` and `vfp.refl1dVFP` objects can be used in [refnx](https://refnx.readthedocs.io/en/latest/) and [refl1d](https://refl1d.readthedocs.io/en/latest/) respectively, e.g:
+The `vfp.refnxVFP` and `vfp.refl1dVFP` objects can be used in [refnx](https://refnx.readthedocs.io/en/latest/) and [refl1d](https://refl1d.readthedocs.io/en/latest/) respectively, e.g with refnx:
 
 ```python
-from refnx.analysis import GlobalObjective, Parameter, Objective, CurveFitter
 from refnx.reflect import ReflectModel, SLD
-from refnx.dataset import ReflectDataset
 import matplotlib.pyplot as plt
-import vfp
+from vfp import refnxVFP
 
 thicknesses = (0, 20, 30)
 roughnesses = (2, 4, 6)
 slds = (2.07, 3.47, 0.21, 6.37)
 
 # create a refnxVFP object for refnx
-vfp = vfp.refnxVFP(slds, thicknesses, roughnesses)
+refnx_vfp = refnxVFP(slds, thicknesses, roughnesses)
 
-# wrap the vfp object by the fronting and backing materials 
+# wrap the vfp object by the fronting and backing materials
 # when defining the structure.
-struc = SLD(2.07, name='Si') | vfp | SLD(6.37, name='D2O')
+struc = SLD(2.07, name='Si') | refnx_vfp | SLD(6.37, name='D2O')
 
 # now the structure can be used to build a ReflectModel.
 model = ReflectModel(struc)

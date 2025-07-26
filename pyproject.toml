@@ -1,19 +1,19 @@
 [tool.poetry]
 name = "vfp"
-version = "0.2.0"
+version = "1.0.0"
 description = "Calculate neutron and x-ray reflectivity profiles via physical volume fraction profiles."
-authors = ["Alexander Armstrong <sandyjoarmstrong@hotmail.com>", 
+authors = ["Alexander Armstrong <sandyjoarmstrong@hotmail.com>",
            "Rebecca Welbourn"]
 license = "BSD 3-Clause"
 readme = "README.md"
 packages = [{include = "vfp", from="src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.11, <4.0"
-matplotlib = ">=3.10.0"
-numpy = ">=2.2"
-scipy = ">=1.14"
-refnx = ">=0.1.51"
+python = "^3.12"
+matplotlib = "^3.10"
+numpy = "^2.2"
+scipy = "^1.16"
+numba = "^0.61.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
@@ -26,24 +26,57 @@ myst-nb = "^1.2.0"
 sphinx-autoapi = "^3.4.0"
 sphinx-rtd-theme = "^3.0.2"
 deptry = "^0.23.0"
+sphinx-math-dollar = "^1.2.1"
+pathos = "^0.3.4"
+pre-commit = "^4.2.0"
+isort = "^6.0.1"
+
+[tool.poetry.group.refnx.dependencies]
+refnx = "^0.1.51"
 
 [tool.poetry.group.refl1d.dependencies]
-refl1d = {version = "^0.8.16", optional = true}
-bumps = {version = "^0.9.3", optional = true}
+bumps = "^1.0.1"
+refl1d = {git = "https://github.com/reflectometry/refl1d.git", rev = "v1.0.0b1"}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-line-length = 79
+line-length = 78
+target-version = ['py312']
+extend-exclude = "docs/*"
+
+[tool.isort]
+py_version = 312
+profile = "black"
+line_length = 78
+extend_skip = ["docs"]
 
 [tool.ruff]
 src = ["src"]
-line-length = 79
+target-version = "py312"
+line-length = 78
 
 [tool.ruff.lint]
-ignore = ["E501"]
+select = [
+    "A",    # prevent using keywords that clobber python builtins
+    "B",    # bugbear: security warnings
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "W",    # pycodestyle
+    "N",    # pep8-naming
+    "ISC",  # implicit string concatenation
+    "UP",   # alert you when better syntax is available in your python version
+    "RUF",  # the ruff developer's own rules
+    "PLC",   # pylint
+    "PLE",   # pylint
+    "PLR",   # pylint
+    "PLW",   # pylint
+    "NPY",  # numpy
+    "DTZ",  # datetimez
+    "PLW1514", # unspecified-encoding (in preview)
+]
 
 # Exclude specific paths or files
 exclude = ["tests/"]

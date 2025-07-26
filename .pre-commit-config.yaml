@@ -1,0 +1,40 @@
+# .pre-commit-config.yaml
+#
+# This file configures pre-commit hooks to run automatically before each commit.
+# It helps enforce code quality, style, and consistency across the project.
+#
+# To use this file:
+# 1. Ensure you have pre-commit installed: pip install pre-commit
+# 2. Navigate to your project's root directory.
+# 3. Run: pre-commit install
+#
+# After installation, these hooks will run automatically on `git commit`.
+# To run them manually on all files: pre-commit run --all-files
+# To update the hook versions: pre-commit autoupdate
+
+repos:
+  # Standard pre-commit hooks for common issues
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace # Removes trailing whitespace at the end of lines
+      - id: end-of-file-fixer   # Ensures a single newline at the end of files
+
+  # need ruff before black or isort as output may need reformatting.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: ruff
+        types_or: [ python, pyi ] # don't run ruff on notebooks.
+        args: [--fix, --exit-non-zero-on-fix] # will run fix if specified here.
+
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+        name: isort (python)
