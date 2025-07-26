@@ -32,16 +32,11 @@ pre-commit = "^4.2.0"
 isort = "^6.0.1"
 
 [tool.poetry.group.refnx.dependencies]
-refnx = {version = ">=0.1.51", optional = true}
+refnx = "^0.1.51"
 
 [tool.poetry.group.refl1d.dependencies]
-# installed bumps and refl1d via:
-# pip install git+https://github.com/bumps/bumps.git@v1.0.0a15 - I cannot get poetry to do this?
-# bumps = {git = "https://github.com/bumps/bumps.git", tag = "v1.0.0a15", optional = true}
-# refl1d = {git = "https://github.com/reflectometry/refl1d.git", tag = "v1.0.0a16", optional = true}
-# refl1d = {version = "^0.8.16", optional = true}
-# bumps = {version = "^0.9.3", optional = true}
 bumps = "^1.0.1"
+refl1d = {git = "https://github.com/reflectometry/refl1d.git", rev = "v1.0.0b1"}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
