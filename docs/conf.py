@@ -7,7 +7,7 @@
 # -- Project information -----------------------------------------------------
 
 project = "vfp"
-copyright = "2024, Alexander Armstrong"
+copyright = "2024, Alexander Armstrong"  # noqa : A001
 author = "Alexander Armstrong"
 
 # -- General configuration ---------------------------------------------------
@@ -21,7 +21,7 @@ extensions = [
     "autoapi.extension",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
-    'sphinx.ext.mathjax'
+    "sphinx.ext.mathjax",
 ]
 autoapi_dirs = ["../src"]
 
