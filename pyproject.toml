@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "vfp"
-version = "0.2.0"
+version = "1.0.0"
 description = "Calculate neutron and x-ray reflectivity profiles via physical volume fraction profiles."
 authors = ["Alexander Armstrong <sandyjoarmstrong@hotmail.com>",
            "Rebecca Welbourn"]
