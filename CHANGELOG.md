@@ -4,16 +4,21 @@
 
 ## v1.0.0 (03/05/2025)
 
-### Feat
+### Major (breaking change)
+
+- First stable release of `vfp`.
+- Parameters passed to an instance of a child class of `BaseVFP` are now stored in `vfp_attrs` dataclass, rather than being an attribute of the child class.
+
+### Minor (feat)
 
 - Add `vfp.VFP` which does not rely on `refnx` or `refl1d` dependencies.
 - Add ability to plot posterior samples via `BaseVFP.plot()`.
 - Customise colours and labels in `BaseVFP.plot()`.
 
-### Fix
+### Patch (fix)
 
 - Update `refl1dVFP` to work with `refl1d` and `bumps` tagged versions > 1.
-- Generalise demaglocs and demagwidths to handle n peaks. 
+- Generalise demaglocs and demagwidths to handle n peaks.
 - Remove superfluous vfp attributes in `BaseVFP`.
 
 ### Docs
@@ -27,4 +32,4 @@
 
 ## v0.2.0 (25/03/2024)
 
-- First release of `vfp`!
+- alpha release of `vfp`!

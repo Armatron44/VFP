@@ -32,13 +32,13 @@ We can build a simple model with the following:
 import matplotlib.pyplot as plt
 from vfp import VFP
 
-# fronting thickness = 0 (not $\infty$ here) 
-# layer 1 thickness = 20 
+# fronting thickness = 0 (not $\infty$ here)
+# layer 1 thickness = 20
 # layer 2 thickness = 30.
 thicknesses = (0, 20, 30)
 
-# interfacial width between 0 and 1 = 2, 
-# between 1 & 2 = 4, 
+# interfacial width between 0 and 1 = 2,
+# between 1 & 2 = 4,
 # between 2 & backing = 6
 roughnesses = (2, 4, 6)
 
@@ -67,7 +67,7 @@ slds = (2.07, 3.47, 0.21, 6.37)
 # create a refnxVFP object for refnx
 refnx_vfp = refnxVFP(slds, thicknesses, roughnesses)
 
-# wrap the vfp object by the fronting and backing materials 
+# wrap the vfp object by the fronting and backing materials
 # when defining the structure.
 struc = SLD(2.07, name='Si') | refnx_vfp | SLD(6.37, name='D2O')
 
