@@ -685,9 +685,6 @@ if HAS_REFNX:
                         )
                     )
 
-            # output should be same length as input.
-            assert output == len(params)
-
             return output
 
 
@@ -1122,9 +1119,6 @@ if HAS_REFL1D:
                             name=f"{self.name} - {nameid} - {layer_str}",
                         )
                     )
-
-            # output should be same length as input.
-            assert output == len(params)
 
             return output
 
