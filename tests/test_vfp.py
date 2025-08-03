@@ -2,6 +2,8 @@
 Tests VFP and BaseVFP methods.
 """
 
+from functools import partial
+
 import numpy as np
 import pytest
 from scipy.stats import norm
@@ -294,6 +296,13 @@ def test_vfps_conformal(
 
 # test orientation option gives correct SLD profile for simple model
 # and a model with conformal interface.
+nslds = (0, 3, 4.5)
+thicknesses = (0, 20)
+roughnesses = (3, 2)
+msld = (0, 0, 0)
+isld = (0, 0, 0)
+spin_state = "none"
+
 start = -17  # -5 - (4 * 3) = -17
 end = 37  # 5 + (0 + 20) + 4 * 4.5 = 37
 z = np.linspace(start, end, int((end - start) / 0.5) + 1)
@@ -318,86 +327,70 @@ backing_msld = 0 * (
 backing_isld = 0 * (
     norm.cdf(z, loc=0, scale=3) * norm.cdf(z, loc=20, scale=2)
 )
+
+orientation_expected_result_front = np.vstack(
+    (
+        z,
+        np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
+        np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
+        np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
+    )
+)
+
+orientation_expected_result_back = np.vstack(
+    (
+        -(z - (0 + 20)),  # orientation = back - flip z.
+        np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
+        np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
+        np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
+    )
+)
+
 standard_examples_orientation = [
     (
-        (0, 3, 4.5),  # nslds
-        (0, 20),  # thicknesses
-        (3, 2),  # roughnesses
-        "front",  # orientation
-        (0, 0, 0),  # msld
-        (0, 0, 0),  # isld
-        "none",
-        np.vstack(
-            (
-                z,
-                np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
-                np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
-                np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
-            )
-        ),
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
+        msld,
+        isld,
+        spin_state,
+        orientation_expected_result_front,
     ),
     (
-        (0, 3, 4.5),  # nslds
-        (0, 20),  # thicknesses
-        (3, 2),  # roughnesses
-        "back",  # orientation
-        (0, 0, 0),  # msld
-        (0, 0, 0),  # isld
-        "none",
-        np.vstack(
-            (
-                -(z - (0 + 20)),  # orientation = back - flip z.
-                np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
-                np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
-                np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
-            )
-        ),
+        nslds,
+        thicknesses,
+        roughnesses,
+        "back",
+        msld,
+        isld,
+        spin_state,
+        orientation_expected_result_back,
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "slds, thicknesses, roughnesses, orientation, msld, isld, spin_state"
+    "nslds, thicknesses, roughnesses, orientation, mslds, islds, spin_state"
     ", expected_result",
     standard_examples_orientation,
 )
 def test_slds_orientation(  # noqa : PLR0913
-    slds: tuple,
+    nslds: tuple,
     thicknesses: tuple,
     roughnesses: tuple,
     orientation: str,
-    msld: tuple,
-    isld: tuple,
+    mslds: tuple,
+    islds: tuple,
     spin_state: str,
-    expected_result: np.ndarray,
+    expected_result: float,
 ):
-    vfp = VFP(
-        nslds=slds,
-        thicknesses=thicknesses,
-        roughnesses=roughnesses,
-        orientation=orientation,
-        mslds=msld,
-        islds=isld,
-        spin_state=spin_state,
-    )
-    refnx_vfp = refnxVFP(
-        nslds=slds,
-        thicknesses=thicknesses,
-        roughnesses=roughnesses,
-        orientation=orientation,
-        mslds=msld,
-        islds=isld,
-        spin_state=spin_state,
-    )
-    refl1d_vfp = refl1dVFP(
-        nslds=slds,
-        thicknesses=thicknesses,
-        roughnesses=roughnesses,
-        orientation=orientation,
-        mslds=msld,
-        islds=isld,
-        spin_state=spin_state,
-    )
+    vfp_kwargs = locals()
+    del vfp_kwargs["expected_result"]
+
+    vfp = VFP(**vfp_kwargs)
+    refnx_vfp = refnxVFP(**vfp_kwargs)
+    refl1d_vfp = refl1dVFP(**vfp_kwargs)
 
     np.testing.assert_allclose(
         vfp.z_and_sld(reduced=False)[1], refnx_vfp.z_and_sld(reduced=False)[1]
@@ -425,10 +418,169 @@ def test_slds_orientation(  # noqa : PLR0913
 
 # def test_islds():
 
-# # explicit BaseVFP methods
-# def test_sld_offset()
+# explicit BaseVFP methods
+offset_expected_result_front = -17
+offset_expected_result_back = -17.5
+standard_examples_offset = [
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
+        msld,
+        isld,
+        spin_state,
+        offset_expected_result_front,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "back",
+        msld,
+        isld,
+        spin_state,
+        offset_expected_result_back,
+    ),
+]
 
-# def test_tuple_pars()
+
+@pytest.mark.parametrize(
+    "nslds, thicknesses, roughnesses, orientation, mslds, islds, spin_state"
+    ", expected_result",
+    standard_examples_offset,
+)
+def test_sld_offset(  # noqa : PLR0913
+    nslds: tuple,
+    thicknesses: tuple,
+    roughnesses: tuple,
+    orientation: str,
+    mslds: tuple,
+    islds: tuple,
+    spin_state: str,
+    expected_result: np.ndarray,
+):
+    vfp_kwargs = locals()
+    del vfp_kwargs["expected_result"]
+
+    vfp = VFP(**vfp_kwargs)
+    refnx_vfp = refnxVFP(**vfp_kwargs)
+    refl1d_vfp = refl1dVFP(**vfp_kwargs)
+
+    assert_allclose = partial(
+        np.testing.assert_allclose, desired=expected_result, atol=EPS
+    )
+
+    map(
+        assert_allclose,
+        [vfp.sld_offset(), refnx_vfp.sld_offset(), refl1d_vfp.sld_offset()],
+    )
+
+    for v in [vfp, refnx_vfp, refl1d_vfp]:
+        np.testing.assert_allclose(v.sld_offset(), expected_result, atol=EPS)
+
+
+tuple_pars_expected_result = (
+    (0, 20),  # thicks
+    (3, 2),  # roughs
+    (0, 0, 0),  # mslds
+    (),  # demag_widths
+    (),  # demag_logs
+)
+standard_examples_tuple_pars = [
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
+        msld,
+        isld,
+        spin_state,
+        tuple_pars_expected_result,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "back",
+        msld,
+        isld,
+        spin_state,
+        tuple_pars_expected_result,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "nslds, thicknesses, roughnesses, orientation, mslds, islds, spin_state"
+    ", expected_result",
+    standard_examples_tuple_pars,
+)
+def test_tuple_pars(  # noqa : PLR0913
+    nslds: tuple,
+    thicknesses: tuple,
+    roughnesses: tuple,
+    orientation: str,
+    mslds: tuple,
+    islds: tuple,
+    spin_state: str,
+    expected_result: np.ndarray,
+):
+    vfp_kwargs = locals()
+    del vfp_kwargs["expected_result"]
+
+    vfp = VFP(**vfp_kwargs)
+    refnx_vfp = refnxVFP(**vfp_kwargs)
+    refl1d_vfp = refl1dVFP(**vfp_kwargs)
+
+    assert_allclose = partial(
+        np.testing.assert_allclose, desired=expected_result, atol=EPS
+    )
+
+    map(
+        assert_allclose,
+        [vfp.tup_thicks, refnx_vfp.tup_thicks, refl1d_vfp.tup_thicks],
+    )
+
+    map(
+        assert_allclose,
+        [vfp.tup_roughs, refnx_vfp.tup_roughs, refl1d_vfp.tup_roughs],
+    )
+
+    map(
+        assert_allclose,
+        [vfp.tup_mslds, refnx_vfp.tup_mslds, refl1d_vfp.tup_mslds],
+    )
+
+    map(
+        assert_allclose,
+        [
+            vfp.tup_demag_widths,
+            refnx_vfp.tup_demag_widths,
+            refl1d_vfp.tup_demag_widths,
+        ],
+    )
+
+    map(
+        assert_allclose,
+        [
+            vfp.tup_demag_locs,
+            refnx_vfp.tup_demag_locs,
+            refl1d_vfp.tup_demag_locs,
+        ],
+    )
+
+    for v in [vfp, refnx_vfp, refl1d_vfp]:
+        np.testing.assert_allclose(v.tup_thicks, expected_result[0], atol=EPS)
+        np.testing.assert_allclose(v.tup_roughs, expected_result[1], atol=EPS)
+        np.testing.assert_allclose(v.tup_mslds, expected_result[2], atol=EPS)
+        np.testing.assert_allclose(
+            v.tup_demag_widths, expected_result[3], atol=EPS
+        )
+        np.testing.assert_allclose(
+            v.tup_demag_locs, expected_result[4], atol=EPS
+        )
+
 
 # def test_arrtotuple()
 
