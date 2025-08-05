@@ -481,31 +481,59 @@ def test_sld_offset(  # noqa : PLR0913
 
 
 tuple_pars_expected_result = (
-    (0, 20),  # thicks
-    (3, 2),  # roughs
-    (0, 0, 0),  # mslds
-    (),  # demag_widths
-    (),  # demag_logs
+    (0, 20, 30),  # thicks
+    (3, 2, 5),  # roughs
+    (0, 1, 0, 0),  # mslds
+    (3, 4),  # demag_widths
+    (15, 25),  # demag_locs
 )
 standard_examples_tuple_pars = [
     (
-        nslds,
-        thicknesses,
-        roughnesses,
+        [2.07, 3.47, 0.2, 6.7],
+        [0, 20, 30],
+        [3, 2, 5],
         "front",
-        msld,
-        isld,
-        spin_state,
+        [0, 1, 0, 0],
+        [3e-6, 2e-6, 1e-6, 0],
+        "up",
+        [15, 25],
+        [3, 4],
         tuple_pars_expected_result,
     ),
     (
-        nslds,
-        thicknesses,
-        roughnesses,
+        [2.07, 3.47, 0.2, 6.7],
+        [0, 20, 30],
+        [3, 2, 5],
+        "front",
+        [0, 1, 0, 0],
+        [3e-6, 2e-6, 1e-6, 0],
+        "down",
+        [15, 25],
+        [3, 4],
+        tuple_pars_expected_result,
+    ),
+    (
+        [2.07, 3.47, 0.2, 6.7],
+        [0, 20, 30],
+        [3, 2, 5],
         "back",
-        msld,
-        isld,
-        spin_state,
+        [0, 1, 0, 0],
+        [3e-6, 2e-6, 1e-6, 0],
+        "up",
+        [15, 25],
+        [3, 4],
+        tuple_pars_expected_result,
+    ),
+    (
+        [2.07, 3.47, 0.2, 6.7],
+        [0, 20, 30],
+        [3, 2, 5],
+        "back",
+        [0, 1, 0, 0],
+        [3e-6, 2e-6, 1e-6, 0],
+        "down",
+        [15, 25],
+        [3, 4],
         tuple_pars_expected_result,
     ),
 ]
@@ -513,18 +541,20 @@ standard_examples_tuple_pars = [
 
 @pytest.mark.parametrize(
     "nslds, thicknesses, roughnesses, orientation, mslds, islds, spin_state"
-    ", expected_result",
+    ", demaglocs, demagwidths, expected_result",
     standard_examples_tuple_pars,
 )
 def test_tuple_pars(  # noqa : PLR0913
-    nslds: tuple,
-    thicknesses: tuple,
-    roughnesses: tuple,
+    nslds: list,
+    thicknesses: list,
+    roughnesses: list,
     orientation: str,
-    mslds: tuple,
-    islds: tuple,
+    mslds: list,
+    islds: list,
     spin_state: str,
-    expected_result: np.ndarray,
+    demaglocs: list,
+    demagwidths: list,
+    expected_result: tuple,
 ):
     vfp_kwargs = locals()
     del vfp_kwargs["expected_result"]
@@ -532,6 +562,10 @@ def test_tuple_pars(  # noqa : PLR0913
     vfp = VFP(**vfp_kwargs)
     refnx_vfp = refnxVFP(**vfp_kwargs)
     refl1d_vfp = refl1dVFP(**vfp_kwargs)
+
+    vfp._tuple_pars()
+    refnx_vfp._tuple_pars()
+    refl1d_vfp._tuple_pars()
 
     assert_allclose = partial(
         np.testing.assert_allclose, desired=expected_result, atol=EPS
@@ -582,6 +616,57 @@ def test_tuple_pars(  # noqa : PLR0913
         )
 
 
-# def test_arrtotuple()
+arrtotuple_standard_examples = (
+    (
+        [2.07, 3.47, 0.2, 6.7],
+        [0, 20, 30],
+        [3, 2, 5],
+        np.array([0, 20, 30]),
+        (0, 20, 30),
+    ),
+    (
+        [2.07, 3.47, 0.2, 6.7],
+        [0, 20, 30],
+        [3, 2, 5],
+        np.array(
+            [[2.07, 3.47, 0.2, 6.7], [0, 1, 0, 0], [3e-6, 2e-6, 1e-6, 0]]
+        ),
+        ((2.07, 3.47, 0.2, 6.7), (0, 1, 0, 0), (3e-6, 2e-6, 1e-6, 0)),
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    "nslds, thicknesses, roughnesses, tuple_input, expected_result",
+    arrtotuple_standard_examples,
+)
+def test_arrtotuple(
+    nslds: list,
+    thicknesses: list,
+    roughnesses: list,
+    tuple_input,
+    expected_result: tuple,
+):
+    vfp_kwargs = locals()
+    del vfp_kwargs["expected_result"]
+    del vfp_kwargs["tuple_input"]
+
+    vfp = VFP(**vfp_kwargs)
+    refnx_vfp = refnxVFP(**vfp_kwargs)
+    refl1d_vfp = refl1dVFP(**vfp_kwargs)
+
+    vfp_tup = vfp._arrtotuple(tuple_input)
+    refnx_tup = refnx_vfp._arrtotuple(tuple_input)
+    refl1d_tup = refl1d_vfp._arrtotuple(tuple_input)
+
+    assert_allclose = partial(
+        np.testing.assert_allclose, desired=expected_result, atol=EPS
+    )
+
+    map(
+        assert_allclose,
+        [vfp_tup, refnx_tup, refl1d_tup],
+    )
+
 
 # def test_z_and_sld()
