@@ -414,6 +414,110 @@ def test_slds_orientation(  # noqa : PLR0913
         )
 
 
+mask = np.ones_like(z, dtype=bool)
+mask[1:10] = False
+mask[92:108] = False
+
+z_and_slds_reduced_expected_result = np.vstack(
+    (
+        z[mask],
+        np.sum(
+            (fronting_sld[mask], first_lay_sld[mask], backing_sld[mask]),
+            axis=0,
+        ),
+        np.sum(
+            (fronting_msld[mask], first_lay_msld[mask], backing_msld[mask]),
+            axis=0,
+        ),
+        np.sum(
+            (fronting_isld[mask], first_lay_isld[mask], backing_isld[mask]),
+            axis=0,
+        ),
+    )
+)
+
+z_and_slds_notreduced_expected_result = np.vstack(
+    (
+        z,
+        np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
+        np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
+        np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
+    )
+)
+
+standard_examples_z_and_sld = [
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
+        msld,
+        isld,
+        spin_state,
+        False,
+        z_and_slds_notreduced_expected_result,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
+        msld,
+        isld,
+        spin_state,
+        True,
+        z_and_slds_reduced_expected_result,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "nslds, thicknesses, roughnesses, orientation, mslds, islds, spin_state,"
+    "reduced, expected_result",
+    standard_examples_z_and_sld,
+)
+def test_zs_and_slds(  # noqa : PLR0913
+    nslds: tuple,
+    thicknesses: tuple,
+    roughnesses: tuple,
+    orientation: str,
+    mslds: tuple,
+    islds: tuple,
+    spin_state: str,
+    reduced: bool,
+    expected_result: float,
+):
+    vfp_kwargs = locals()
+    del vfp_kwargs["expected_result"]
+    del vfp_kwargs["reduced"]
+
+    vfp = VFP(**vfp_kwargs)
+    refnx_vfp = refnxVFP(**vfp_kwargs)
+    refl1d_vfp = refl1dVFP(**vfp_kwargs)
+
+    np.testing.assert_allclose(
+        vfp.z_and_sld(reduced=reduced)[1],
+        refnx_vfp.z_and_sld(reduced=reduced)[1],
+    )
+    np.testing.assert_allclose(
+        vfp.z_and_sld(reduced=reduced)[1],
+        refl1d_vfp.z_and_sld(reduced=reduced)[1],
+    )
+    np.testing.assert_allclose(
+        refnx_vfp.z_and_sld(reduced=reduced)[1],
+        refl1d_vfp.z_and_sld(reduced=reduced)[1],
+    )
+
+    # check vfp attr is the same expected result
+    for v in [vfp, refnx_vfp, refl1d_vfp]:
+        np.testing.assert_allclose(
+            v.z_and_sld(reduced=reduced)[0], expected_result[0], atol=EPS
+        )
+        np.testing.assert_allclose(
+            v.z_and_sld(reduced=reduced)[1], expected_result[1:].T, atol=EPS
+        )
+
+
 # def test_mslds():
 
 # def test_islds():
@@ -667,6 +771,3 @@ def test_arrtotuple(
         assert_allclose,
         [vfp_tup, refnx_tup, refl1d_tup],
     )
-
-
-# def test_z_and_sld()
