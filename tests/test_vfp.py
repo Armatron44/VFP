@@ -296,44 +296,75 @@ def test_vfps_conformal(
 
 # test orientation option gives correct SLD profile for simple model
 # and a model with conformal interface.
-nslds = (0, 3, 4.5)
+nslds = (0.1, 3, 4.5)
 thicknesses = (0, 20)
 roughnesses = (3, 2)
-msld = (0, 0, 0)
-isld = (0, 0, 0)
-spin_state = "none"
+msld = (0, 1, 2.3)
+isld = (7.5e-3, 1e-4, 3e-2)
 
 start = -17  # -5 - (4 * 3) = -17
 end = 37  # 5 + (0 + 20) + 4 * 4.5 = 37
 z = np.linspace(start, end, int((end - start) / 0.5) + 1)
-fronting_sld = (1 - norm.cdf(z, loc=0, scale=3)) * 0
+fronting_sld = (1 - norm.cdf(z, loc=0, scale=3)) * 0.1
 fronting_msld = (1 - norm.cdf(z, loc=0, scale=3)) * 0
-fronting_isld = (1 - norm.cdf(z, loc=0, scale=3)) * 0
+fronting_isld = (1 - norm.cdf(z, loc=0, scale=3)) * 7.5 * 1e-3
 first_lay_sld = 3 * (
     norm.cdf(z, loc=0, scale=3) * (1 - norm.cdf(z, loc=20, scale=2))
 )
-first_lay_msld = 0 * (
+first_lay_msld = 1 * (
     norm.cdf(z, loc=0, scale=3) * (1 - norm.cdf(z, loc=20, scale=2))
 )
-first_lay_isld = 0 * (
+first_lay_isld = 1e-4 * (
     norm.cdf(z, loc=0, scale=3) * (1 - norm.cdf(z, loc=20, scale=2))
 )
 backing_sld = 4.5 * (
     norm.cdf(z, loc=0, scale=3) * norm.cdf(z, loc=20, scale=2)
 )
-backing_msld = 0 * (
+backing_msld = 2.3 * (
     norm.cdf(z, loc=0, scale=3) * norm.cdf(z, loc=20, scale=2)
 )
-backing_isld = 0 * (
+backing_isld = 3e-2 * (
     norm.cdf(z, loc=0, scale=3) * norm.cdf(z, loc=20, scale=2)
+)
+
+orientation_expected_result_front_nospin = np.vstack(
+    (
+        z,
+        np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
+        np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
+        np.sum(
+            (
+                np.zeros_like(fronting_msld),
+                np.zeros_like(first_lay_msld),
+                np.zeros_like(backing_msld),
+            ),
+            axis=0,
+        ),
+    )
+)
+
+orientation_expected_result_back_nospin = np.vstack(
+    (
+        -(z - (0 + 20)),  # orientation = back - flip z.
+        np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
+        np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
+        np.sum(
+            (
+                np.zeros_like(fronting_msld),
+                np.zeros_like(first_lay_msld),
+                np.zeros_like(backing_msld),
+            ),
+            axis=0,
+        ),
+    )
 )
 
 orientation_expected_result_front = np.vstack(
     (
         z,
         np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
-        np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
         np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
+        np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
     )
 )
 
@@ -341,8 +372,8 @@ orientation_expected_result_back = np.vstack(
     (
         -(z - (0 + 20)),  # orientation = back - flip z.
         np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
-        np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
         np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
+        np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
     )
 )
 
@@ -352,9 +383,29 @@ standard_examples_orientation = [
         thicknesses,
         roughnesses,
         "front",
+        (0, 0, 0),
+        isld,
+        "none",
+        orientation_expected_result_front_nospin,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "back",
+        (0, 0, 0),
+        isld,
+        "none",
+        orientation_expected_result_back_nospin,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
         msld,
         isld,
-        spin_state,
+        "up",
         orientation_expected_result_front,
     ),
     (
@@ -364,7 +415,27 @@ standard_examples_orientation = [
         "back",
         msld,
         isld,
-        spin_state,
+        "up",
+        orientation_expected_result_back,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
+        msld,
+        isld,
+        "down",
+        orientation_expected_result_front,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "back",
+        msld,
+        isld,
+        "down",
         orientation_expected_result_back,
     ),
 ]
@@ -426,11 +497,33 @@ z_and_slds_reduced_expected_result = np.vstack(
             axis=0,
         ),
         np.sum(
+            (fronting_isld[mask], first_lay_isld[mask], backing_isld[mask]),
+            axis=0,
+        ),
+        np.sum(
             (fronting_msld[mask], first_lay_msld[mask], backing_msld[mask]),
+            axis=0,
+        ),
+    )
+)
+
+z_and_slds_reduced_nospin_expected_result = np.vstack(
+    (
+        z[mask],
+        np.sum(
+            (fronting_sld[mask], first_lay_sld[mask], backing_sld[mask]),
             axis=0,
         ),
         np.sum(
             (fronting_isld[mask], first_lay_isld[mask], backing_isld[mask]),
+            axis=0,
+        ),
+        np.sum(
+            (
+                np.zeros_like(fronting_msld)[mask],
+                np.zeros_like(first_lay_msld)[mask],
+                np.zeros_like(backing_msld)[mask],
+            ),
             axis=0,
         ),
     )
@@ -440,8 +533,24 @@ z_and_slds_notreduced_expected_result = np.vstack(
     (
         z,
         np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
-        np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
         np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
+        np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
+    )
+)
+
+z_and_slds_notreduced_nospin_expected_result = np.vstack(
+    (
+        z,
+        np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
+        np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
+        np.sum(
+            (
+                np.zeros_like(fronting_msld),
+                np.zeros_like(first_lay_msld),
+                np.zeros_like(backing_msld),
+            ),
+            axis=0,
+        ),
     )
 )
 
@@ -451,9 +560,31 @@ standard_examples_z_and_sld = [
         thicknesses,
         roughnesses,
         "front",
+        (0, 0, 0),
+        isld,
+        "none",
+        False,
+        z_and_slds_notreduced_nospin_expected_result,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
+        (0, 0, 0),
+        isld,
+        "none",
+        True,
+        z_and_slds_reduced_nospin_expected_result,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
         msld,
         isld,
-        spin_state,
+        "up",
         False,
         z_and_slds_notreduced_expected_result,
     ),
@@ -464,7 +595,29 @@ standard_examples_z_and_sld = [
         "front",
         msld,
         isld,
-        spin_state,
+        "up",
+        True,
+        z_and_slds_reduced_expected_result,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
+        msld,
+        isld,
+        "down",
+        False,
+        z_and_slds_notreduced_expected_result,
+    ),
+    (
+        nslds,
+        thicknesses,
+        roughnesses,
+        "front",
+        msld,
+        isld,
+        "down",
         True,
         z_and_slds_reduced_expected_result,
     ),
@@ -531,9 +684,9 @@ standard_examples_offset = [
         thicknesses,
         roughnesses,
         "front",
-        msld,
+        (0, 0, 0),
         isld,
-        spin_state,
+        "none",
         offset_expected_result_front,
     ),
     (
@@ -543,7 +696,7 @@ standard_examples_offset = [
         "back",
         msld,
         isld,
-        spin_state,
+        "up",
         offset_expected_result_back,
     ),
 ]
