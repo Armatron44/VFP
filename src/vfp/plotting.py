@@ -596,7 +596,7 @@ def model_plot(  # noqa: PLR0913
     # get ax this way so that its a flat list for 1 or multiple axes.
     ax = fig.axes
 
-    # create maps for kwargs that can be passed to plot_type.plot.
+    # create map for kwargs that can be passed to plot_type.plot.
     kwarg_map = {
         PlotType.SLD: sld_plot_kwargs,
         PlotType.VFP: vfp_plot_kwargs,
@@ -631,7 +631,8 @@ def model_plot(  # noqa: PLR0913
                 axis.plot_type.plot(ax[axis], *plot_args, **plot_kwargs)
 
     # plot main profiles.
-    vfp.varying_parameters = original_ps  # set to original values.
+    if vfp.varying_parameters is not None:
+        vfp.varying_parameters = original_ps  # set to original values.
 
     plot_fn_args_map = {
         PlotType.SLD: (vfp, False),
