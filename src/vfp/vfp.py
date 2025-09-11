@@ -1041,7 +1041,7 @@ if HAS_REFL1D:
             self,
             params: tuple[ParameterLike | None] | list[ParameterLike | None],
             nameid: str,
-        ) -> list[bumpsParameter | None]:
+        ) -> list[bumpsParameter | Expression | None]:
             """
             Creates a list of bumpsParameters.
 
@@ -1054,7 +1054,7 @@ if HAS_REFL1D:
 
             Returns
             -------
-                list[bumpsParameter | None]
+                list[bumpsParameter | Expression | None]
             """
             # create a list of strings that describe what each parameter is.
             # depends on which parameters we are dealing with.
@@ -1102,13 +1102,25 @@ if HAS_REFL1D:
                     else:
                         output.append(None)
                 elif isinstance(par, Expression):
-                    warnings.warn(
-                        "If msld / isld parameters are part of a function"
-                        " (i.e f(p1, p2) = p1 + p2), they must be of type"
-                        " bumps.parameter.Parameter. Do not use material"
-                        " or SLD objects.",
-                        stacklevel=2,
-                    )
+                    try:  # check we can extract all objects in par.
+                        exp_ps = par.parameters()
+                    except TypeError as terr:
+                        raise ValueError(
+                            f"Supplied expression {par} must contain "
+                            "only bumpsParameter types. Check for "
+                            "refl1d.sample.material.SLD objects and "
+                            "similar in Expression."
+                        ) from terr
+                    else:
+                        if not all(
+                            [isinstance(_p, bumpsParameter) for _p in exp_ps]
+                        ):
+                            raise ValueError(
+                                f"Supplied expression {par} must contain "
+                                "only bumpsParameter types. Check for "
+                                "refl1d.sample.material.SLD objects and "
+                                "similar in Expression."
+                            )
                     output.append(
                         par
                     )  # keep as Expression until parameters property.
