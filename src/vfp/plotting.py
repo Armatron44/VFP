@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 from enum import IntEnum, StrEnum, auto
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 # third party
 import matplotlib
@@ -16,6 +16,11 @@ from scipy import stats
 
 if TYPE_CHECKING:
     from vfp.basevfp import BaseVFP
+
+
+class LayerMaterialFraction(TypedDict):
+    name: str
+    solvation_value: float
 
 
 class PlotType(StrEnum):
@@ -115,11 +120,12 @@ class PlotType(StrEnum):
             ax.set_ylabel(r"SLD / $\mathrm{\AA{}}^{-2} \times 10^{-6}$")
             ax.set_xlim(def_xlower_lim, def_xupper_lim)
 
-    def _plot_vfp(  # noqa: PLR0913
+    def _plot_vfp(  # noqa: PLR0913 PLR0912
         self,
         ax: Axes,
         vfp: BaseVFP,
         posterior: bool,
+        layer_materials: dict[int, LayerMaterialFraction] | None = None,
         colours: tuple[tuple[float, float, float], ...] | None = None,
         total_vf: bool = True,
         labels: list[str] | None = None,
@@ -142,6 +148,7 @@ class PlotType(StrEnum):
             Concrete child instance of BaseVFP to plot.
         posterior : bool
             Flag to indicate if plotting posterior samples.
+        layer_materials : dict[int, LayerMaterialFraction] | None, optional
         colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot vfp profile. Posterior samples are plotted in
             every second colour, while the nominal profile of each layer
@@ -169,6 +176,10 @@ class PlotType(StrEnum):
         vfs = vfp.vfs_for_display()[0]
         z = vfp.z_and_sld()[0]
         xlower_lim, xupper_lim = self._calc_xlims(z)
+
+        if layer_materials is not None:
+            vfs, labels = self._recalc_vfs_by_materials(layer_materials, vfs)
+
         if posterior:
             if vfp.vfp_attrs.orientation == "front":
                 for i, lay_vfp in enumerate(vfs):
@@ -370,6 +381,50 @@ class PlotType(StrEnum):
         margin = 0.05 * (z[-1] - z[0])
         lims = z[0] - margin, z[-1] + margin
         return sorted(lims)
+
+    def _recalc_vfs_by_materials(
+        self,
+        layer_materials: dict[int, LayerMaterialFraction],
+        vfs: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Calculate a volume fraction profile for each material.
+
+        Parameters
+        ----------
+        layer_materials : _type_
+            _description_
+        vfs : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        all_mats = [
+            mat_name
+            for matfrac in layer_materials.values()
+            for mat_name in matfrac.keys()
+        ]
+        unique_materials = []
+        for mat in all_mats:
+            if mat not in unique_materials:
+                unique_materials.append(mat)
+
+        lay_vfp_dict = {}
+        for i, lay in enumerate(vfs):
+            for ky, mat in layer_materials[i].items():
+                lay_vfp_dict[i, ky] = lay * mat
+
+        # calculate the sum over all layers for each individual material.
+        new_vfs = np.zeros(shape=(len(unique_materials), vfs.shape[1]))
+        for i, uniq_mat in enumerate(unique_materials):
+            new_vfs[i] = np.vstack(
+                [v for k, v in lay_vfp_dict.items() if uniq_mat == k[1]]
+            ).sum(axis=0)
+
+        return new_vfs, unique_materials
 
 
 # create a map of PlotType members to plot fns in PlotType.
