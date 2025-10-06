@@ -14,13 +14,15 @@ from matplotlib.figure import Figure
 from refnx.reflect.interface import Step
 from scipy import stats
 
+from vfp.vfp_typing import ParameterLike
+
 if TYPE_CHECKING:
     from vfp.basevfp import BaseVFP
 
 
 class LayerMaterialFraction(TypedDict):
     name: str
-    solvation_value: float
+    solvation: ParameterLike
 
 
 class PlotType(StrEnum):
@@ -149,6 +151,12 @@ class PlotType(StrEnum):
         posterior : bool
             Flag to indicate if plotting posterior samples.
         layer_materials : dict[int, LayerMaterialFraction] | None, optional
+            Each key is the layer number (e.g fronting = 0), while
+            the value should be a `LayerMaterialFraction` dict, where
+            the keys are the material names, and values are `ParameterLike`
+            (float, int, refnxParameter, BumpsParameter). The material
+            names are used as labels, and will overwrite the `labels`
+            parameter.
         colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot vfp profile. Posterior samples are plotted in
             every second colour, while the nominal profile of each layer
@@ -388,7 +396,7 @@ class PlotType(StrEnum):
         vfs: np.ndarray,
     ) -> np.ndarray:
         """
-        Calculate a volume fraction profile for each material.
+        Calculate volume fraction profiles for each material.
 
         Parameters
         ----------
@@ -407,6 +415,8 @@ class PlotType(StrEnum):
             for matfrac in layer_materials.values()
             for mat_name in matfrac.keys()
         ]
+
+        # maintain the order of first appearance.
         unique_materials = []
         for mat in all_mats:
             if mat not in unique_materials:
@@ -415,7 +425,7 @@ class PlotType(StrEnum):
         lay_vfp_dict = {}
         for i, lay in enumerate(vfs):
             for ky, mat in layer_materials[i].items():
-                lay_vfp_dict[i, ky] = lay * mat
+                lay_vfp_dict[i, ky] = lay * float(mat)
 
         # calculate the sum over all layers for each individual material.
         new_vfs = np.zeros(shape=(len(unique_materials), vfs.shape[1]))
