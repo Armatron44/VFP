@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 from enum import IntEnum, StrEnum, auto
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, Unpack
 
 # third party
 import matplotlib
@@ -14,15 +14,15 @@ from matplotlib.figure import Figure
 from refnx.reflect.interface import Step
 from scipy import stats
 
-from vfp.vfp_typing import ParameterLike
+from vfp.vfp_typing import (
+    LayerMaterialFraction,
+    SldPlotKwargType,
+    SurfacePlotKwargType,
+    VfpPlotKwargType,
+)
 
 if TYPE_CHECKING:
     from vfp.basevfp import BaseVFP
-
-
-class LayerMaterialFraction(TypedDict):
-    name: str
-    solvation: ParameterLike
 
 
 class PlotType(StrEnum):
@@ -356,12 +356,18 @@ class PlotType(StrEnum):
                 (len(vfp.tup_thicks) + 1) * 3
             )  # borders will be higher than surfaces and fills.
 
-    def plot(self, *args, **kwargs) -> None:
+    def plot(
+        self,
+        *args,
+        **kwargs: Unpack[
+            SldPlotKwargType | VfpPlotKwargType | SurfacePlotKwargType
+        ],
+    ) -> None:
         """
         Wraps specific plot functions depending on PlotType.
         """
         plot_func = plot_dispatch.get(self)
-        if plot_func:
+        if plot_func is not None:
             plot_func(self, *args, **kwargs)
         else:
             raise NotImplementedError(
@@ -394,20 +400,20 @@ class PlotType(StrEnum):
         self,
         layer_materials: dict[int, LayerMaterialFraction],
         vfs: np.ndarray,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, list]:
         """
         Calculate volume fraction profiles for each material.
 
         Parameters
         ----------
-        layer_materials : _type_
+        layer_materials : dict[int, LayerMaterialFraction]
             _description_
-        vfs : _type_
-            _description_
+        vfs : np.ndarray
+            volume fraction profile of each layer.
 
         Returns
         -------
-        _type_
+        np.ndarray
             _description_
         """
         all_mats = [
@@ -588,9 +594,9 @@ def model_plot(  # noqa: PLR0913
     surface_points: int,
     surface_rng: np.random.Generator,
     fig: Figure | None,
-    sld_plot_kwargs: dict | None,
-    vfp_plot_kwargs: dict | None,
-    surface_plot_kwargs: dict | None,
+    sld_plot_kwargs: SldPlotKwargType | None,
+    vfp_plot_kwargs: VfpPlotKwargType | None,
+    surface_plot_kwargs: SurfacePlotKwargType | None,
 ) -> tuple[Figure, Axes | np.ndarray[Axes]]:
     """
     Visualises the vfp model.
@@ -610,7 +616,7 @@ def model_plot(  # noqa: PLR0913
         The keys should match the names of varying parameters in the vfp.
         Array values should be 1D of parameter values.
         If None, no posterior samples will be plotted.
-    surface_points : integer
+    surface_points : int
         Number of points to simulate across each interface.
     surface_rng : np.random.Generator
         Random number generator for producing draws from each interface's
@@ -618,11 +624,11 @@ def model_plot(  # noqa: PLR0913
     fig : Figure | None
         If supplied, plots will be plotted on `fig`. If None, a new Figure
         will be created.
-    sld_plot_kwargs : dict | None
+    sld_plot_kwargs : SldPlotKwargType | None
         Kwargs to be passed to PlotType._plot_sld.
-    vfp_plot_kwargs : dict | None
+    vfp_plot_kwargs : VfpPlotKwargType | None
         Kwargs to be passed to PlotType._plot_vfp.
-    surface_plot_kwargs : dict | None
+    surface_plot_kwargs : SurfacePlotKwargType | None
         Kwargs to be passed to PlotType._plot_surfaces.
 
     Returns
@@ -662,7 +668,9 @@ def model_plot(  # noqa: PLR0913
     ax = fig.axes
 
     # create map for kwargs that can be passed to plot_type.plot.
-    kwarg_map = {
+    kwarg_map: dict[
+        PlotType, SldPlotKwargType | VfpPlotKwargType | SurfacePlotKwargType
+    ] = {
         PlotType.SLD: sld_plot_kwargs,
         PlotType.VFP: vfp_plot_kwargs,
         PlotType.SURFACES: surface_plot_kwargs,
@@ -727,7 +735,7 @@ def _gen_sld_profile(
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray]:
+    tuple[np.ndarray, np.ndarray]
         Contains the z distance (first index in tuple) over the interface and
         a 2D array of slds in order of sldn, sldi, sldm.
     """

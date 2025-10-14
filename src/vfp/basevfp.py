@@ -14,7 +14,13 @@ from matplotlib.figure import Figure
 # this package
 from vfp.calc import calc_dzs, calc_vfp, calc_zeds, init_demag, integrate_vfp
 from vfp.plotting import model_plot
-from vfp.vfp_typing import ParameterLike, SLDConstraintType
+from vfp.vfp_typing import (
+    ParameterLike,
+    SLDConstraintType,
+    SldPlotKwargType,
+    SurfacePlotKwargType,
+    VfpPlotKwargType,
+)
 
 
 @dataclass
@@ -419,9 +425,9 @@ class BaseVFP(ABC):
         surface_points: int = 50,
         surface_rng: np.random.Generator | None = None,
         fig: Figure | None = None,
-        sld_plot_kwargs: dict | None = None,
-        vfp_plot_kwargs: dict | None = None,
-        surface_plot_kwargs: dict | None = None,
+        sld_plot_kwargs: SldPlotKwargType | None = None,
+        vfp_plot_kwargs: VfpPlotKwargType | None = None,
+        surface_plot_kwargs: SurfacePlotKwargType | None = None,
     ) -> tuple[Figure, Axes | np.ndarray[Axes]]:
         """
         Makes a one to three axis figure to visualise VFP model.
@@ -455,13 +461,13 @@ class BaseVFP(ABC):
         fig : Figure | None, optional.
             If supplied, plots will be plotted on `fig`.
             By default a new Figure will be created.
-        sld_plot_kwargs : dict | None, optional
+        sld_plot_kwargs : SldPlotKwargType | None, optional
             Kwargs to be passed to vfp.plotting.PlotType._plot_sld.
             By default None.
-        vfp_plot_kwargs : dict | None, optional
+        vfp_plot_kwargs : VfpPlotKwargType | None, optional
             Kwargs to be passed to vfp.plotting.PlotType._plot_vfp.
             By default None.
-        surface_plot_kwargs : dict | None, optional
+        surface_plot_kwargs : SurfacePlotKwargType | None, optional
             Kwargs to be passed to vfp.plotting.PlotType._plot_surfaces.
             By default None.
 
