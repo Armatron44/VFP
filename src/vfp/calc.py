@@ -541,3 +541,27 @@ def integrate_vfp(
         integrals.append(layer_integral)
 
     return integrals
+
+
+def heaviside_step(z: np.ndarray, loc: float = 0) -> np.ndarray:
+    """
+    Get heaviside step function over support `z`, where centre is `loc`.
+
+    output y = 1 if z >= loc else 0.
+
+    Parameters
+    ----------
+    z : np.ndarray
+        points at which to evaluate function.
+    loc : float, optional
+        Location of transition.
+
+    Returns
+    -------
+    np.ndarray
+    """
+    centred_z = z - loc
+    f = np.empty_like(centred_z)
+    f[centred_z < 0] = 0
+    f[centred_z >= 0] = 1
+    return f

@@ -12,9 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from refnx.reflect.interface import Step
 from scipy import stats
 
+from vfp.calc import heaviside_step
 from vfp.vfp_typing import (
     LayerMaterialFraction,
     SldPlotKwargType,
@@ -810,12 +810,12 @@ def _gen_sld_profile(
     delta_all_slds = np.hstack(
         (np.zeros(shape=(3, 1)), (microslices[:, 1:] - microslices[:, :-1]))
     )
-    stepper = Step()
+
     # accumulate the sld of each step.
     # with scale = 0, this gives a 1 or 0 if x >= or < loc.
     for i in range(nslices - 1):
         all_slds += (
-            stepper(zed_step, scale=0, loc=zed[i])[:, None]
+            heaviside_step(zed_step, loc=zed[i])[:, None]
             * delta_all_slds[:, i]
         )
 
