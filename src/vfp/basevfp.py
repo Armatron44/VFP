@@ -12,7 +12,14 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 # this package
-from vfp.calc import calc_dzs, calc_vfp, calc_zeds, init_demag, integrate_vfp
+from vfp.calc import (
+    calc_dzs,
+    calc_vfp,
+    calc_zeds,
+    init_demag,
+    integrate_vfp,
+    transform_indices,
+)
 from vfp.plotting import model_plot
 from vfp.vfp_typing import (
     ParameterLike,
@@ -117,7 +124,6 @@ class BaseVFP(ABC):
         "z space of interface as tuple for caching."
 
         all_slds = self.get_slds()
-
         # total the nuclear and magnetic SLDs on given contrast.
         if self.vfp_attrs.spin_state == "none":
             coh_sld = all_slds[0]
@@ -136,7 +142,6 @@ class BaseVFP(ABC):
         # just in reverse order
         if self.vfp_attrs.orientation == "back":
             self.dz = self.dz[::-1]
-
         # get the average between each coherent and imaginary sld value.
         average_slds, average_islds = (
             0.5 * np.diff(slds) + slds[:-1] for slds in [coh_sld, i_sld]
@@ -144,24 +149,24 @@ class BaseVFP(ABC):
 
         # init arrays for final SLDs.
         return_slds, return_islds = [
-            np.ones(slds.size + 1) for slds in [average_slds, average_islds]
+            np.ones(slds.size) for slds in [average_slds, average_islds]
         ]
 
         if self.vfp_attrs.orientation == "front":
             # fill all but last with average SLDs.
-            return_slds[:-1] = return_slds[:-1] * average_slds
-            return_islds[:-1] = return_islds[:-1] * average_islds
+            return_slds = return_slds * average_slds
+            return_islds = return_islds * average_islds
             # now set the final sld value to those from the micro arrays.
-            return_slds[-1] = coh_sld[-1]
-            return_islds[-1] = i_sld[-1]
+            # return_slds[-1] = coh_sld[-1]
+            # return_islds[-1] = i_sld[-1]
 
         elif self.vfp_attrs.orientation == "back":
             # do the same but backwards for back orientations.
-            return_slds[1:] = return_slds[1:] * average_slds[::-1]
-            return_islds[1:] = return_islds[1:] * average_islds[::-1]
+            return_slds = return_slds * average_slds[::-1]
+            return_islds = return_islds * average_islds[::-1]
             # now set the final sld value to those from the micro arrays.
-            return_slds[0] = coh_sld[-1]
-            return_islds[0] = i_sld[-1]
+            # return_slds[0] = coh_sld[-1]
+            # return_islds[0] = i_sld[-1]
 
         return return_slds, return_islds, self.dz
 
@@ -349,7 +354,9 @@ class BaseVFP(ABC):
         self.process_model()  # update the model.
         z = np.array(self.zeds)
         # conditionally remove z at indices.
-        z = np.delete(z, self.indices) if reduced else z
+        if reduced:
+            delete_idx = transform_indices(self.indices)
+            z = np.delete(z, delete_idx)
 
         if self.vfp_attrs.orientation == "front":
             slds = self.get_slds(reduced=reduced)
