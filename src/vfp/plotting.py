@@ -761,6 +761,10 @@ def _gen_sld_profile(
     """
     Calculate sld profiles (nuclear, magnetic and imaginary) from the VFP.
 
+    The purpose of this function is to create the step-like affect
+    to reconstruct the sld profile modelled. To do this, we reconstruct
+    from `vfp.dz`
+
     Parameters
     ----------
     vfp : BaseVFP
@@ -772,50 +776,35 @@ def _gen_sld_profile(
         Contains the z distance (first index in tuple) over the interface and
         a 2D array of slds in order of sldn, sldi, sldm.
     """
-    # grab the original nSLD and mSLDs
-    zed, slds = vfp.z_and_sld()
-
-    # stepper (see below) is most easily worked with ascending order
-    # arrays. Invert zed if orientation is back to work in asc order.
-    zed = zed[::-1] if vfp.vfp_attrs.orientation == "back" else zed
-
-    # create an additional set of points close to all zeds but first point,
-    # with neg translation to create the step effect.
-    # if front, need a small offset from the next step.
-    # if back, need a small positive offset from current step.
+    vfp.process_model()
+    # derive zeds and average slds from dzs and slds.
+    all_slds = vfp.get_slds()
+    mid_slds = np.vstack(
+        [0.5 * np.diff(slds) + slds[:-1] for slds in all_slds]
+    )
+    av_slds = np.vstack([np.ones_like(row_slds) for row_slds in mid_slds])
+    av_slds = av_slds * mid_slds
+    # zeds from dz
+    o_z, _ = vfp.z_and_sld()
+    o_z = o_z[::-1] if vfp.vfp_attrs.orientation == "back" else o_z
+    reconstruc_zeds = np.ones(shape=(vfp.dz.size + 1)) * o_z[0]
+    reconstruc_zeds[1:] += np.cumsum(vfp.dz)
     multiplier = 19 if vfp.vfp_attrs.orientation == "back" else 1
-    zed_step_insert = zed[1:] - (
+    zed_step_insert = reconstruc_zeds[1:] - (
         multiplier * float(vfp.vfp_attrs.max_delta_z) / 20
     )
-    zed_step = np.sort(np.concatenate([zed, zed_step_insert]))
-    # get the midpoint between adjacent nsld, msld and isld values.
-    mid_slds = [0.5 * np.diff(sld_row) + sld_row[:-1] for sld_row in slds.T]
-
-    # init 2D array (3, Nlayers) for final mid slds.
-    microslices = np.ones_like(slds.T)
-    nslices = microslices.shape[1]
-
-    # over each row (nsld, msld, isld), set to mid sld.
-    for i, mid_sld in enumerate(mid_slds):
-        # fill all but last with mid slds.
-        microslices[i, :-1] = microslices[i, :-1] * mid_sld
-        # now set the final sld value to those from the micro arrays.
-        microslices[i, -1] = slds[-1, i]
-
-    # the output arrays - starting at mid point slds between idx 0 & 1.
-    all_slds = (
-        np.ones_like(zed_step, dtype=float)[:, None] * microslices[:, 0]
-    )
+    zed_step = np.sort(np.concatenate([reconstruc_zeds, zed_step_insert]))
+    all_slds = np.ones_like(zed_step, dtype=float)[:, None] * av_slds[:, 0]
     # first value needs a difference of 0 as we start at this point.
     delta_all_slds = np.hstack(
-        (np.zeros(shape=(3, 1)), (microslices[:, 1:] - microslices[:, :-1]))
+        (np.zeros(shape=(3, 1)), (av_slds[:, 1:] - av_slds[:, :-1]))
     )
 
     # accumulate the sld of each step.
     # with scale = 0, this gives a 1 or 0 if x >= or < loc.
-    for i in range(nslices - 1):
+    for i in range(av_slds.shape[1] - 1):
         all_slds += (
-            heaviside_step(zed_step, loc=zed[i])[:, None]
+            heaviside_step(zed_step, loc=reconstruc_zeds[i])[:, None]
             * delta_all_slds[:, i]
         )
 
