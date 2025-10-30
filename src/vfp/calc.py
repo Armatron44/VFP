@@ -53,6 +53,9 @@ def calc_dzs(
 
     However, where a microslice's index is defined in `idxs`,
     the microslice is combined with the previous microslice.
+    The size of the returned dzs is `points` - n where = n is the
+    number of consecutive idxs. For example, `idxs=(1, 2, 3, 5, 6)`,
+    `dz.size` = points - 3
 
     Parameters
     ----------
