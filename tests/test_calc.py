@@ -12,6 +12,7 @@ from vfp.calc import (
     init_demag,
     integrate_vfp,
     one_minus_cdf,
+    transform_indices,
 )
 
 
@@ -53,11 +54,11 @@ def test_calc_dzs():
         points=304,
         idxs=(10, 11, 12, 13, 14, 50, 51, 52, 53),
     )
-    expected_output = np.ones(304 - 9) * 0.5
-    # (15 - 9) * 0.5 = 3
-    expected_output[10] = 3
-    # (54 - 49) * 0.5 = 2.5
-    expected_output[45] = 2.5
+    expected_output = np.ones(303 - 7) * 0.5
+    # 5 * 0.5 = 2.5
+    expected_output[10] = 2.5
+    # 4 * 0.5 = 2
+    expected_output[46] = 2
     assert_allclose(dz, expected_output)
 
 
@@ -172,11 +173,10 @@ def test_init_demag():
         < MICROSLICE_EQUIVALENCE_THRESHOLD
     )
     reduce_diff_arr = np.all(difference_arr, axis=0)
-    indices_full = np.nonzero(reduce_diff_arr)
+    (indices_full,) = np.nonzero(reduce_diff_arr)
 
     # shift indices along by 1 & don't take last value of indices_full.
-    expected_idx = (indices_full[0] + 1)[:-1]
-
+    expected_idx = transform_indices(indices_full)
     # now remove parts of the vfps and mag_comp where they are ~ invariant.
     reduced_vfp = np.delete(expected_vfp, expected_idx, 1)
     reduced_magcomp = np.delete(exp_mag_comp, expected_idx, 1)
