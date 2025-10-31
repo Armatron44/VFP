@@ -12,7 +12,6 @@ from vfp.calc import (
     init_demag,
     integrate_vfp,
     one_minus_cdf,
-    transform_indices,
 )
 
 
@@ -175,15 +174,20 @@ def test_init_demag():
     reduce_diff_arr = np.all(difference_arr, axis=0)
     (indices_full,) = np.nonzero(reduce_diff_arr)
 
-    # shift indices along by 1 & don't take last value of indices_full.
-    expected_idx = transform_indices(indices_full)
+    indices = np.asarray(indices_full)
+    to_delete_indices = indices + 1
+    seperate_indices = np.split(
+        to_delete_indices, (np.diff(to_delete_indices) != 1).nonzero()[0] + 1
+    )
+    expected_idx = np.concatenate([arr[:-1] for arr in seperate_indices])
+
     # now remove parts of the vfps and mag_comp where they are ~ invariant.
     reduced_vfp = np.delete(expected_vfp, expected_idx, 1)
     reduced_magcomp = np.delete(exp_mag_comp, expected_idx, 1)
 
     assert_allclose(res[0], reduced_vfp)
     assert_allclose(res[1], reduced_magcomp)
-    assert_allclose(res[2], expected_idx)
+    assert_allclose(res[2], indices_full)
     assert_allclose(res[3], expected_demag_arr)
 
 
