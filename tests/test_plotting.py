@@ -7,7 +7,6 @@ from matplotlib.figure import Figure
 from vfp import refnxVFP
 
 EPS = np.finfo(float).eps
-rng = np.random.default_rng(seed=42)
 
 PLOTTING_EXAMPLES_PATH = (
     pathlib.Path(__file__).parent
@@ -15,7 +14,35 @@ PLOTTING_EXAMPLES_PATH = (
     / "plotting_examples.npz"
 )
 
-PLOTTING_EXAMPLES_MAP = {("front"): "image_array"}
+PLOTTING_EXAMPLES_MAP = {
+    (
+        "front",
+        "allplots_layermats_mslice_tsld",
+    ): "front_allplots_layermats_mslice_tsld",
+    ("front", "sldvfpplots_layermats"): "front_sldvfpplots_layermats",
+    ("front", "vfp_post"): "front_vfp_post",
+    ("front", "surfacesvfp"): "front_surfacesvfp",
+    (
+        "back_ssup",
+        "allplots_layermats_mslice_tsld",
+    ): "back_ssup_allplots_layermats_mslice_tsld",
+    ("back_ssup", "sldvfpplots_layermats"): "back_ssup_sldvfpplots_layermats",
+    ("back_ssup", "vfp_post"): "back_ssup_vfp_post",
+    ("back_ssup", "surfacesvfp"): "back_ssup_surfacesvfp",
+    (
+        "front_mdz_01_ss_down",
+        "allplots_layermats_mslice_tsld",
+    ): "front_mdz_01_ss_down_allplots_layermats_mslice_tsld",
+    (
+        "front_mdz_01_ss_down",
+        "sldvfpplots_layermats",
+    ): "front_mdz_01_ss_down_sldvfpplots_layermats",
+    ("front_mdz_01_ss_down", "vfp_post"): "front_mdz_01_ss_down_vfp_post",
+    (
+        "front_mdz_01_ss_down",
+        "surfacesvfp",
+    ): "front_mdz_01_ss_down_surfacesvfp",
+}
 
 
 @pytest.fixture
@@ -34,37 +61,90 @@ def fig_to_arr(fig: Figure) -> np.ndarray:
     return image_array
 
 
-standard_plot_examples = [(("front"), "front")]
+standard_plot_examples = [
+    (
+        ("front", "allplots_layermats_mslice_tsld"),
+        {"spin_state": "up"},
+        "allplots_layermats_mslice_tsld",
+    ),
+    (
+        ("front", "sldvfpplots_layermats"),
+        {"spin_state": "up"},
+        "sldvfpplots_layermats",
+    ),
+    (("front", "vfp_post"), {"spin_state": "up"}, "vfp_post"),
+    (("front", "surfacesvfp"), {"spin_state": "up"}, "surfacesvfp"),
+    (
+        ("back_ssup", "allplots_layermats_mslice_tsld"),
+        {"orientation": "back", "spin_state": "up"},
+        "allplots_layermats_mslice_tsld",
+    ),
+    (
+        ("back_ssup", "sldvfpplots_layermats"),
+        {"orientation": "back", "spin_state": "up"},
+        "sldvfpplots_layermats",
+    ),
+    (
+        ("back_ssup", "vfp_post"),
+        {"orientation": "back", "spin_state": "up"},
+        "vfp_post",
+    ),
+    (
+        ("back_ssup", "surfacesvfp"),
+        {"orientation": "back", "spin_state": "up"},
+        "surfacesvfp",
+    ),
+    (
+        ("front_mdz_01_ss_down", "allplots_layermats_mslice_tsld"),
+        {"max_delta_z": 0.1, "spin_state": "down"},
+        "allplots_layermats_mslice_tsld",
+    ),
+    (
+        ("front_mdz_01_ss_down", "sldvfpplots_layermats"),
+        {"max_delta_z": 0.1, "spin_state": "down"},
+        "sldvfpplots_layermats",
+    ),
+    (
+        ("front_mdz_01_ss_down", "vfp_post"),
+        {"max_delta_z": 0.1, "spin_state": "down"},
+        "vfp_post",
+    ),
+    (
+        ("front_mdz_01_ss_down", "surfacesvfp"),
+        {"max_delta_z": 0.1, "spin_state": "down"},
+        "surfacesvfp",
+    ),
+]
 
 
 @pytest.mark.parametrize(
-    "file_content, vfp_orientation",
+    "file_content, vfp_kwargs, plot_kwarg_keys",
     standard_plot_examples,
     indirect=["file_content"],
 )
 def test_plot(
-    vfp_inputs,
-    posterior_samples_setup,
-    materials_by_layer_setup,
-    file_content,
-    vfp_orientation,
+    vfp_inputs, plot_kwargs, file_content, vfp_kwargs, plot_kwarg_keys
 ):
-    dd_gmo_nslds, list_of_thicknesses_gmo, list_of_roughnesses_gmo = (
+    nslds, mslds, islds, list_of_thicknesses_gmo, list_of_roughnesses_gmo = (
         vfp_inputs
     )
-    dd_vfp_gmo = refnxVFP(
-        nslds=dd_gmo_nslds,
+    vfp = refnxVFP(
+        nslds=nslds,
         thicknesses=list_of_thicknesses_gmo,
         roughnesses=list_of_roughnesses_gmo,
-        orientation=vfp_orientation,
+        mslds=mslds,
+        islds=islds,
+        **vfp_kwargs,
     )
 
-    fig, _ = dd_vfp_gmo.plot(
-        posterior_samples=posterior_samples_setup,
-        surface_rng=rng,
-        vfp_plot_kwargs={"layer_materials": materials_by_layer_setup},
-    )
-
+    fig, _ = vfp.plot(**plot_kwargs[plot_kwarg_keys])
     fig_arr = fig_to_arr(fig)
+    import matplotlib.pyplot as plt
+
+    plt.close()
     expected_result = file_content
+    fig, ax = plt.subplots(2)
+    ax[0].imshow(fig_arr)
+    ax[1].imshow(expected_result)
+    plt.show()
     np.testing.assert_allclose(fig_arr, expected_result)

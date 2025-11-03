@@ -4,150 +4,222 @@ from refnx.analysis import Parameter
 from refnx.reflect import SLD
 
 rng = np.random.default_rng(seed=41)
+surface_rng = np.random.default_rng(seed=42)
 
 
 @pytest.fixture
 def sld_setup():
-    si = SLD(2.07, name="si")
-    sio2 = SLD(3.47, name="sio2")
-    gmo = SLD(0.21, name="gmo")
-    water = SLD(-0.56, name="water")
-    hdod = SLD(-0.46, name="hdod")
-    ddod = SLD(6.7, name="ddod")
+    fronting_sld = SLD(2, name="fronting_sld")
+    lay1nsld = SLD(3.5, name="lay1nsld")
+    interf_mat1sld = SLD(0.2, name="interf_mat1sld")
+    interf_mat2sld = SLD(-0.5, name="interf_mat2sld")
+    backing_sld = SLD(6.7, name="backing_sld")
 
-    # lets vary the ddod but not the hdod.
-    ddod.real.setp(vary=True, bounds=(6, 6.7))
+    backing_sld.real.setp(vary=True, bounds=(6, 6.7))
 
-    yield [si, sio2, gmo, water, hdod, ddod]
+    lay1msld = SLD(2.3, name="lay1msld")
+
+    nslds = [
+        fronting_sld,
+        lay1nsld,
+        interf_mat1sld,
+        interf_mat2sld,
+        backing_sld,
+    ]
+
+    mslds = [lay1msld]
+
+    islds = [0.0, 0.2, 0.4, 0.3, 0]
+
+    yield [nslds, mslds, islds]
 
 
 @pytest.fixture
 def parameter_setup():
-    sio2_thick = Parameter(20, name="sio2_thick", vary=True, bounds=(1, 30))
-    inner_thick = Parameter(14, name="inner_thick", vary=True, bounds=(1, 30))
-    outer_thick = Parameter(22, name="outer_thick", vary=True, bounds=(1, 30))
-    si_sio2_rough = Parameter(
-        3, name="si_sio2_rough", vary=True, bounds=(1, 5)
+    lay1_thick = Parameter(20, name="lay1_thick", vary=True, bounds=(1, 30))
+    lay2_thick = Parameter(14, name="lay2_thick", vary=True, bounds=(1, 30))
+    lay3_thick = Parameter(22, name="lay3_thick", vary=True, bounds=(1, 30))
+    fronting_lay1_rough = Parameter(
+        3, name="fronting_lay1_rough", vary=True, bounds=(1, 5)
     )
-    sio2_inner_rough = Parameter(
-        4, name="sio2_inner_rough", vary=True, bounds=(1, 5)
+    lay1_lay2_rough = Parameter(
+        4, name="lay1_lay2_rough", vary=True, bounds=(1, 5)
     )
-    inner_outer_rough = Parameter(
-        4, name="inner_outer_rough", vary=True, bounds=(1, 5)
+    lay2_lay3_rough = Parameter(
+        4, name="lay2_lay3_rough", vary=True, bounds=(1, 5)
     )
-    outer_solv_rough = Parameter(
-        5, name="outer_solv_rough", vary=True, bounds=(1, 5)
+    lay3_backing_rough = Parameter(
+        5, name="lay3_backing_rough", vary=True, bounds=(1, 5)
     )
-    inner_gmo_vf = Parameter(
-        0.4, name="inner_gmo_vf", vary=True, bounds=(0, 1)
+    layer2_interf_mat1_vf = Parameter(
+        0.4, name="layer2_interf_mat1_vf", vary=True, bounds=(0, 1)
     )
-    inner_solv_vf = Parameter(
-        0.2, name="inner_solv_vf", vary=True, bounds=(0, 1)
+    layer2_backing_vf = Parameter(
+        0.2, name="layer2_backing_vf", vary=True, bounds=(0, 1)
     )
-    outer_gmo_vf = Parameter(
-        0.7, name="outer_gmo_vf", vary=True, bounds=(0, 1)
+    layer3_interf_mat1_vf = Parameter(
+        0.7, name="layer3_interf_mat1_vf", vary=True, bounds=(0, 1)
     )
-    outer_solv_vf = Parameter(
-        0.7, name="outer_solv_vf", vary=True, bounds=(0, 1)
+    layer3_backing_vf = Parameter(
+        0.7, name="layer3_backing_vf", vary=True, bounds=(0, 1)
     )
     ps = [
-        sio2_thick,
-        inner_thick,
-        outer_thick,
-        si_sio2_rough,
-        sio2_inner_rough,
-        inner_outer_rough,
-        outer_solv_rough,
-        inner_gmo_vf,
-        inner_solv_vf,
-        outer_gmo_vf,
-        outer_solv_vf,
+        lay1_thick,
+        lay2_thick,
+        lay3_thick,
+        fronting_lay1_rough,
+        lay1_lay2_rough,
+        lay2_lay3_rough,
+        lay3_backing_rough,
+        layer2_interf_mat1_vf,
+        layer2_backing_vf,
+        layer3_interf_mat1_vf,
+        layer3_backing_vf,
     ]
     yield ps
 
 
 @pytest.fixture
-def vfp_inputs(sld_setup: list[SLD], parameter_setup: list[Parameter]):
-    si, sio2, gmo, water, hdod, ddod = sld_setup
+def vfp_inputs(
+    sld_setup: list[list[SLD], list[float]], parameter_setup: list[Parameter]
+):
+    nslds, mslds, islds = sld_setup
+    (fronting_sld, lay1nsld, interf_mat1sld, interf_mat2sld, backing_sld) = (
+        nslds
+    )
+    (lay1msld,) = mslds
     (
-        sio2_thick,
-        inner_thick,
-        outer_thick,
-        si_sio2_rough,
-        sio2_inner_rough,
-        inner_outer_rough,
-        outer_solv_rough,
-        inner_gmo_vf,
-        inner_solv_vf,
-        outer_gmo_vf,
-        outer_solv_vf,
+        lay1_thick,
+        lay2_thick,
+        lay3_thick,
+        fronting_lay1_rough,
+        lay1_lay2_rough,
+        lay2_lay3_rough,
+        lay3_backing_rough,
+        layer2_interf_mat1_vf,
+        layer2_backing_vf,
+        layer3_interf_mat1_vf,
+        layer3_backing_vf,
     ) = parameter_setup
-    dd_gmo_nslds = [
-        si.real,
-        sio2.real,
-        (1 - inner_solv_vf)
-        * (gmo.real * inner_gmo_vf + (water.real * 1 - inner_gmo_vf))
-        + ddod.real * inner_solv_vf,
-        (1 - outer_solv_vf)
-        * (gmo.real * outer_gmo_vf + (water.real * 1 - outer_gmo_vf))
-        + ddod.real * outer_solv_vf,
-        ddod.real,
+    vfp_nslds = [
+        fronting_sld.real,
+        lay1nsld.real,
+        (1 - layer2_backing_vf)
+        * (
+            interf_mat1sld.real * layer2_interf_mat1_vf
+            + (interf_mat2sld.real * 1 - layer2_interf_mat1_vf)
+        )
+        + backing_sld.real * layer2_backing_vf,
+        (1 - layer3_backing_vf)
+        * (
+            interf_mat1sld.real * layer3_interf_mat1_vf
+            + (interf_mat2sld.real * 1 - layer3_interf_mat1_vf)
+        )
+        + backing_sld.real * layer3_backing_vf,
+        backing_sld.real,
     ]
 
-    list_of_thicknesses_gmo = [0, sio2_thick, inner_thick, outer_thick]
+    vfp_mslds = [0, lay1msld.real, 0, 0, 0]
+
+    list_of_thicknesses_gmo = [0, lay1_thick, lay2_thick, lay3_thick]
     list_of_roughnesses_gmo = [
-        si_sio2_rough,
-        sio2_inner_rough,
-        inner_outer_rough,
-        outer_solv_rough,
+        fronting_lay1_rough,
+        lay1_lay2_rough,
+        lay2_lay3_rough,
+        lay3_backing_rough,
     ]
 
-    yield dd_gmo_nslds, list_of_thicknesses_gmo, list_of_roughnesses_gmo
+    yield (
+        vfp_nslds,
+        vfp_mslds,
+        islds,
+        list_of_thicknesses_gmo,
+        list_of_roughnesses_gmo,
+    )
 
 
 @pytest.fixture
 def materials_by_layer_setup(parameter_setup):
     (
-        sio2_thick,
-        inner_thick,
-        outer_thick,
-        si_sio2_rough,
-        sio2_inner_rough,
-        inner_outer_rough,
-        outer_solv_rough,
-        inner_gmo_vf,
-        inner_solv_vf,
-        outer_gmo_vf,
-        outer_solv_vf,
+        lay1_thick,
+        lay2_thick,
+        lay3_thick,
+        fronting_lay1_rough,
+        lay1_lay2_rough,
+        lay2_lay3_rough,
+        lay3_backing_rough,
+        layer2_interf_mat1_vf,
+        layer2_backing_vf,
+        layer3_interf_mat1_vf,
+        layer3_backing_vf,
     ) = parameter_setup
     materials_by_layer = {
-        0: {"Si": 1},
-        1: {r"$\mathrm{SiO}_2$": 1},
+        0: {"fronting": 1},
+        1: {"lay1": 1},
         2: {
-            "water": (1 - inner_solv_vf) * (1 - inner_gmo_vf),
-            "gmo": (1 - inner_solv_vf) * inner_gmo_vf,
-            "ddod": inner_solv_vf,
+            "mat2": (1 - layer2_backing_vf) * (1 - layer2_interf_mat1_vf),
+            "mat1": (1 - layer2_backing_vf) * layer2_interf_mat1_vf,
+            "backing": layer2_backing_vf,
         },
         3: {
-            "water": (1 - outer_solv_vf) * (1 - outer_gmo_vf),
-            "gmo": (1 - outer_solv_vf) * outer_gmo_vf,
-            "ddod": outer_solv_vf,
+            "mat2": (1 - layer3_backing_vf) * (1 - layer3_interf_mat1_vf),
+            "mat1": (1 - layer3_backing_vf) * layer3_interf_mat1_vf,
+            "backing": layer3_backing_vf,
         },
-        4: {"ddod": 1},
+        4: {"backing": 1},
     }
     yield materials_by_layer
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def posterior_samples_setup():
     posterior_samples = {
-        "si_sio2_rough": rng.normal(loc=3, scale=0.25, size=300),
-        "sio2_thick": rng.normal(loc=20, scale=0.4, size=300),
-        "inner_thick": rng.normal(loc=14, scale=1, size=300),
-        "outer_thick": rng.normal(loc=22, scale=2, size=300),
-        "inner_gmo_vf": rng.normal(loc=0.4, scale=0.02, size=300),
-        "inner_solv_vf": rng.normal(loc=0.2, scale=0.023, size=300),
-        "outer_gmo_vf": rng.normal(loc=0.7, scale=0.03, size=300),
-        "outer_solv_vf": rng.normal(loc=0.7, scale=0.038, size=300),
+        "fronting_lay1_rough": rng.normal(loc=3, scale=0.25, size=300),
+        "lay1_lay2_rough": rng.normal(loc=4, scale=0.3, size=300),
+        "lay2_lay3_rough": rng.normal(loc=4, scale=0.4, size=300),
+        "lay3_backing_rough": rng.normal(loc=5, scale=0.5, size=300),
+        "lay1_thick": rng.normal(loc=20, scale=0.4, size=300),
+        "lay2_thick": rng.normal(loc=14, scale=1, size=300),
+        "lay3_thick": rng.normal(loc=22, scale=2, size=300),
+        "layer2_interf_mat1_vf": rng.normal(loc=0.4, scale=0.02, size=300),
+        "layer2_backing_vf": rng.normal(loc=0.2, scale=0.023, size=300),
+        "layer3_interf_mat1_vf": rng.normal(loc=0.7, scale=0.03, size=300),
+        "layer3_backing_vf": rng.normal(loc=0.7, scale=0.038, size=300),
     }
     yield posterior_samples
+
+
+@pytest.fixture
+def plot_kwargs(posterior_samples_setup, materials_by_layer_setup):
+    posterior_samples = posterior_samples_setup
+    materials_by_layer = materials_by_layer_setup
+
+    base_plot_kwargs = dict(
+        surface_rng=surface_rng, posterior_samples=posterior_samples
+    )
+    addn_plot_kwargs = [
+        {
+            "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
+            "sld_plot_kwargs": {"microslice": True, "total_sld": True},
+        },
+        {
+            "plots_required": ["sld", "vfp"],
+            "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
+            "sld_plot_kwargs": {"microslice": False, "total_sld": False},
+        },
+        {"plots_required": ["vfp"], "posterior_samples": None},
+        {"plots_required": ["surfaces", "vfp"]},
+    ]
+
+    keys = [
+        "allplots_layermats_mslice_tsld",
+        "sldvfpplots_layermats",
+        "vfp_post",
+        "surfacesvfp",
+    ]
+
+    final_plot_kwargs = {
+        key: base_plot_kwargs | akwargs
+        for key, akwargs in zip(keys, addn_plot_kwargs, strict=False)
+    }
+    yield final_plot_kwargs

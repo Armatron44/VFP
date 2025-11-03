@@ -41,7 +41,6 @@ backing_sld = SLD(6.7, name="backing_sld")
 
 lay1msld = SLD(2.3, name="lay1msld")
 
-# lets vary the ddod but not the hdod.
 backing_sld.real.setp(vary=True, bounds=(6, 6.7))
 
 # define thickness and roughness parameters.
@@ -167,14 +166,13 @@ base_plot_kwargs = dict(
 )
 addn_plot_kwargs = [
     {
-        "plots_required": ["sld", "vfp"],
         "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
         "sld_plot_kwargs": {"microslice": True, "total_sld": True},
     },
     {
         "plots_required": ["sld", "vfp"],
         "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
-        "sld_plot_kwargs": {"microslice": False, "total_sld": True},
+        "sld_plot_kwargs": {"microslice": False, "total_sld": False},
     },
     {"plots_required": ["vfp"], "posterior_samples": None},
     {"plots_required": ["surfaces", "vfp"]},
@@ -199,17 +197,18 @@ figs = plot_vfp(vfps, final_plot_kwargs)
 
 image_arrs = figs_to_arr(figs)
 descrips = [
-    "front_allplots_layermats",
+    "front_allplots_layermats_mslice_tsld",
     "front_sldvfpplots_layermats",
-    "front_sldvfpplots_nopost",
+    "front_vfp_post",
     "front_surfacesvfp",
-    "back_allplots_layermats",
-    "back_sldvfpplots_layermats",
-    "back_sldvfpplots_nopost",
-    "back_surfacesvfp,front_allplots_layermats_maxdeltaz=0.1",
-    "front_sldvfpplots_layermats_maxdeltaz=0.1",
-    "front_sldvfpplots_nopost_maxdeltaz=0.1",
-    "front_surfacesvfp_maxdeltaz=0.1",
+    "back_ssup_allplots_layermats_mslice_tsld",
+    "back_ssup_sldvfpplots_layermats",
+    "back_ssup_vfp_post",
+    "back_ssup_surfacesvfp",
+    "front_mdz_01_ss_down_allplots_layermats_mslice_tsld",
+    "front_mdz_01_ss_down_sldvfpplots_layermats",
+    "front_mdz_01_ss_down_vfp_post",
+    "front_mdz_01_ss_down_surfacesvfp",
 ]
 
 plt.show()
