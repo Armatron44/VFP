@@ -139,12 +139,5 @@ def test_plot(
 
     fig, _ = vfp.plot(**plot_kwargs[plot_kwarg_keys])
     fig_arr = fig_to_arr(fig)
-    import matplotlib.pyplot as plt
-
-    plt.close()
     expected_result = file_content
-    fig, ax = plt.subplots(2)
-    ax[0].imshow(fig_arr)
-    ax[1].imshow(expected_result)
-    plt.show()
     np.testing.assert_allclose(fig_arr, expected_result)

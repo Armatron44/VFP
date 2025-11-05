@@ -486,8 +486,9 @@ def test_slds_orientation(  # noqa : PLR0913
 
 
 mask = np.ones_like(z, dtype=bool)
-mask[1:10] = False
-mask[92:108] = False
+# 8 * 0.5 + 0.5 = 4.5
+mask[1:9] = False  # known points that are removed when reduced.
+mask[92:108] = False  # 16 * 0.5 + 0.5
 
 z_and_slds_reduced_expected_result = np.vstack(
     (
@@ -676,8 +677,11 @@ def test_zs_and_slds(  # noqa : PLR0913
 # def test_islds():
 
 # explicit BaseVFP methods
+# -5 - (4 * 3) = -17
 offset_expected_result_front = -17
-offset_expected_result_back = -17.5
+# thicknesses = (0, 20), roughnesses = (3, 2) 20 + 12 + 5 = 37
+# 37 + 4.5 (last dz when back is 4.5): -(41.5 - 20) = -21.5
+offset_expected_result_back = -21.5
 standard_examples_offset = [
     (
         nslds,
