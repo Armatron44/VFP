@@ -33,6 +33,7 @@ sphinx-math-dollar = "^1.2.1"
 pathos = "^0.3.4"
 pre-commit = "^4.2.0"
 isort = "^6.0.1"
+sphinx-book-theme = "^1.1.4"
 
 [tool.poetry.extras]
 refnx = ["refnx"]

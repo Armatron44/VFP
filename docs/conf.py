@@ -7,8 +7,8 @@
 # -- Project information -----------------------------------------------------
 
 project = "vfp"
-copyright = "2024, Alexander Armstrong"  # noqa : A001
-author = "Alexander Armstrong"
+copyright = "2024-2025, Alexander Armstrong"  # noqa : A001
+author = "Alexander Armstrong, Rebecca Welbourn"
 
 # -- General configuration ---------------------------------------------------
 
@@ -34,7 +34,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = "sphinx_rtd_theme"
+html_theme = "sphinx_book_theme"
 
 nb_execution_mode = "off"
 
@@ -42,3 +42,8 @@ myst_enable_extensions = [
     "amsmath",
     "dollarmath",
 ]
+
+html_theme_options = {
+    "repository_url": "https://github.com/Armatron44/VFP",
+    "use_repository_button": True,
+}
