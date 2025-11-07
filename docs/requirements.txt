@@ -1,3 +1,5 @@
 myst-nb
 sphinx-autoapi
 sphinx-rtd-theme
+sphinx-math-dollar
+sphinx-book-theme
