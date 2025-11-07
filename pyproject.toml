@@ -25,14 +25,16 @@ jupyter = "^1.0.0"
 ruff = "^0.9.3"
 black = "^24.10.0"
 tqdm = "^4.67.1"
-myst-nb = "^1.2.0"
-sphinx-autoapi = "^3.4.0"
-sphinx-rtd-theme = "^3.0.2"
 deptry = "^0.23.0"
-sphinx-math-dollar = "^1.2.1"
 pathos = "^0.3.4"
 pre-commit = "^4.2.0"
 isort = "^6.0.1"
+
+[tool.poetry.group.docs.dependencies]
+myst-nb = "^1.2.0"
+sphinx-autoapi = "^3.4.0"
+sphinx-rtd-theme = "^3.0.2"
+sphinx-math-dollar = "^1.2.1"
 sphinx-book-theme = "^1.1.4"
 
 [tool.poetry.extras]
