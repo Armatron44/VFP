@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from enum import IntEnum, StrEnum, auto
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Unpack
 
 # third party
 import matplotlib
@@ -11,8 +12,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from refnx.reflect.interface import Step
 from scipy import stats
+
+from vfp.calc import heaviside_step
+from vfp.vfp_typing import (
+    LayerMaterialFraction,
+    SldPlotKwargType,
+    SurfacePlotKwargType,
+    VfpPlotKwargType,
+)
 
 if TYPE_CHECKING:
     from vfp.basevfp import BaseVFP
@@ -23,11 +31,12 @@ class PlotType(StrEnum):
     VFP = "vfp"
     SURFACES = "surfaces"
 
-    def _plot_sld(
+    def _plot_sld(  # noqa : PLR0913
         self,
         ax: Axes,
         vfp: BaseVFP,
         posterior: bool,
+        get_axtwinx: Callable[[Axes], Axes],
         microslice: bool = True,
         total_sld: bool = False,
     ) -> None:
@@ -43,6 +52,8 @@ class PlotType(StrEnum):
         posterior : bool
             Flag to indicate if plotting posterior samples when calling
             function.
+        get_axtwinx : Callable[[Axes], Axes]
+            Pass ax to return a twinned x axes object.
         microslice : bool, optional
             Flag to plot sld as microsliced slabs as fed into refnx / refl1d.
             If False, continuous sld is plotted as calculated from vfp.
@@ -55,7 +66,6 @@ class PlotType(StrEnum):
         # get slds to plot (1d z, 2d all_slds (z points, sld type))
         if microslice:
             z, all_slds = _gen_sld_profile(vfp)
-            z = z + vfp.sld_offset()
         else:
             z, all_slds = vfp.z_and_sld()
 
@@ -73,17 +83,6 @@ class PlotType(StrEnum):
 
         ax.plot(z, sld_to_plot, color="k", **sld_to_plot_kwargs)
 
-        # plot sldi if any are nonzero.
-        if all_slds[:, 1].any():
-            plot_sldi_kwargs = dict(
-                alpha=alpha,
-                label=None if posterior else r"$\mathrm{SLD}_{\mathrm{i}}$",
-            )
-            ax_twinx = ax.twinx()
-            ax_twinx.plot(
-                z, all_slds[:, 1], color="tab:red", **plot_sldi_kwargs
-            )
-
         # if plotting slds separate & they are non zero.
         if not total_sld and all_slds[:, 2].any():
             plot_sldm_kwargs = dict(
@@ -92,16 +91,23 @@ class PlotType(StrEnum):
             )
             ax.plot(z, all_slds[:, 2], color="tab:grey", **plot_sldm_kwargs)
 
+        # plot sldi if any are nonzero.
+        ax_twinx = None
+        if all_slds[:, 1].any():
+            ax_twinx = get_axtwinx(ax)
+            plot_sldi_kwargs = dict(
+                alpha=alpha,
+                label=None if posterior else r"$\mathrm{SLD}_{\mathrm{i}}$",
+            )
+            ax_twinx.plot(
+                z, all_slds[:, 1], color="tab:red", **plot_sldi_kwargs
+            )
+
         if not posterior:
-            # format
-            if all_slds[
-                :, 1
-            ].any():  # format the right-hand side y axis if used.
+            if ax_twinx is not None:
                 ax_twinx.set_ylabel(
-                    (
-                        r"$\mathrm{SLD}_{\mathrm{i}}$ / "
-                        r"$\mathrm{\AA{}}^{-2} \times 10^{-6}$",
-                    ),
+                    r"$\mathrm{SLD}_{\mathrm{i}}$ /"
+                    r" $\mathrm{\AA{}}^{-2} \times 10^{-6}$",
                     color="tab:red",
                 )
                 ax_twinx.tick_params(axis="y", colors="tab:red")
@@ -115,11 +121,12 @@ class PlotType(StrEnum):
             ax.set_ylabel(r"SLD / $\mathrm{\AA{}}^{-2} \times 10^{-6}$")
             ax.set_xlim(def_xlower_lim, def_xupper_lim)
 
-    def _plot_vfp(  # noqa: PLR0913
+    def _plot_vfp(  # noqa: PLR0913 PLR0912
         self,
         ax: Axes,
         vfp: BaseVFP,
         posterior: bool,
+        layer_materials: dict[int, LayerMaterialFraction] | None = None,
         colours: tuple[tuple[float, float, float], ...] | None = None,
         total_vf: bool = True,
         labels: list[str] | None = None,
@@ -142,6 +149,13 @@ class PlotType(StrEnum):
             Concrete child instance of BaseVFP to plot.
         posterior : bool
             Flag to indicate if plotting posterior samples.
+        layer_materials : dict[int, LayerMaterialFraction] | None, optional
+            Each key is the layer number (e.g fronting = 0), while
+            the value should be a `LayerMaterialFraction` dict, where
+            the keys are the material names, and values are `ParameterLike`
+            (float, int, refnxParameter, BumpsParameter). The material
+            names are used as labels, and will overwrite the `labels`
+            parameter.
         colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot vfp profile. Posterior samples are plotted in
             every second colour, while the nominal profile of each layer
@@ -169,6 +183,12 @@ class PlotType(StrEnum):
         vfs = vfp.vfs_for_display()[0]
         z = vfp.z_and_sld()[0]
         xlower_lim, xupper_lim = self._calc_xlims(z)
+
+        if layer_materials is not None:
+            vfs, labels = self._recalc_vfs_by_materials(
+                layer_materials, vfs, vfp.vfp_attrs.orientation
+            )
+
         if posterior:
             if vfp.vfp_attrs.orientation == "front":
                 for i, lay_vfp in enumerate(vfs):
@@ -326,7 +346,7 @@ class PlotType(StrEnum):
         ylower = 0.5
         yupper = (points - 2) + ((points - 1) - (points - 2)) / 2
 
-        ax.set_xlabel(r"Distance over Interface / $\mathrm{\AA{}}$")
+        # ax.set_xlabel(r"Distance over Interface / $\mathrm{\AA{}}$")
         ax.set_yticks([])
         # set the x limits to the original x limits before plotting the fills.
         ax.set_xlim(def_xlower_lim, def_xupper_lim)
@@ -337,12 +357,18 @@ class PlotType(StrEnum):
                 (len(vfp.tup_thicks) + 1) * 3
             )  # borders will be higher than surfaces and fills.
 
-    def plot(self, *args, **kwargs) -> None:
+    def plot(
+        self,
+        *args,
+        **kwargs: Unpack[
+            SldPlotKwargType | VfpPlotKwargType | SurfacePlotKwargType
+        ],
+    ) -> None:
         """
         Wraps specific plot functions depending on PlotType.
         """
         plot_func = plot_dispatch.get(self)
-        if plot_func:
+        if plot_func is not None:
             plot_func(self, *args, **kwargs)
         else:
             raise NotImplementedError(
@@ -370,6 +396,69 @@ class PlotType(StrEnum):
         margin = 0.05 * (z[-1] - z[0])
         lims = z[0] - margin, z[-1] + margin
         return sorted(lims)
+
+    def _recalc_vfs_by_materials(
+        self,
+        layer_materials: dict[int, LayerMaterialFraction],
+        vfs: np.ndarray,
+        orientation: Literal["front", "back"],
+    ) -> tuple[np.ndarray, list]:
+        """
+        Calculate volume fraction profiles for each material.
+
+        Parameters
+        ----------
+        layer_materials : dict[int, LayerMaterialFraction]
+            The volume fractions of materials in each layer.
+        vfs : np.ndarray
+            volume fraction profile of each layer.
+
+        Returns
+        -------
+        tuple[np.ndarray, list[str]]
+            The first index is the volume fraction profile
+            of each material. Second is the name of each
+            material for label names.
+        """
+        all_mats = [
+            mat_name
+            for matfrac in layer_materials.values()
+            for mat_name in matfrac.keys()
+        ]
+
+        # maintain the order of first appearance.
+        unique_materials = []
+        for mat in all_mats:
+            if mat not in unique_materials:
+                unique_materials.append(mat)
+        unique_materials = (
+            unique_materials[::-1]
+            if orientation == "back"
+            else unique_materials
+        )
+
+        lay_vfp_dict = {}
+
+        def lm_lookup(n):
+            """when orientation is back, match up the
+            layer materials with the vfs."""
+            if orientation == "front":
+                return n
+            else:
+                return (len(layer_materials) - 1) - n
+
+        for i, lay in enumerate(vfs):
+            for ky, mat in layer_materials[lm_lookup(i)].items():
+                lay_vfp_dict[i, ky] = lay * float(mat)
+
+        # calculate the sum over all layers for each individual material.
+        new_vfs = np.zeros(shape=(len(unique_materials), vfs.shape[1]))
+        for i, uniq_mat in enumerate(unique_materials):
+            new_vfs[i] = np.vstack(
+                [v for k, v in lay_vfp_dict.items() if uniq_mat == k[1]]
+            ).sum(axis=0)
+
+        return new_vfs, unique_materials
 
 
 # create a map of PlotType members to plot fns in PlotType.
@@ -523,9 +612,9 @@ def model_plot(  # noqa: PLR0913
     surface_points: int,
     surface_rng: np.random.Generator,
     fig: Figure | None,
-    sld_plot_kwargs: dict | None,
-    vfp_plot_kwargs: dict | None,
-    surface_plot_kwargs: dict | None,
+    sld_plot_kwargs: SldPlotKwargType | None,
+    vfp_plot_kwargs: VfpPlotKwargType | None,
+    surface_plot_kwargs: SurfacePlotKwargType | None,
 ) -> tuple[Figure, Axes | np.ndarray[Axes]]:
     """
     Visualises the vfp model.
@@ -545,7 +634,7 @@ def model_plot(  # noqa: PLR0913
         The keys should match the names of varying parameters in the vfp.
         Array values should be 1D of parameter values.
         If None, no posterior samples will be plotted.
-    surface_points : integer
+    surface_points : int
         Number of points to simulate across each interface.
     surface_rng : np.random.Generator
         Random number generator for producing draws from each interface's
@@ -553,11 +642,11 @@ def model_plot(  # noqa: PLR0913
     fig : Figure | None
         If supplied, plots will be plotted on `fig`. If None, a new Figure
         will be created.
-    sld_plot_kwargs : dict | None
+    sld_plot_kwargs : SldPlotKwargType | None
         Kwargs to be passed to PlotType._plot_sld.
-    vfp_plot_kwargs : dict | None
+    vfp_plot_kwargs : VfpPlotKwargType | None
         Kwargs to be passed to PlotType._plot_vfp.
-    surface_plot_kwargs : dict | None
+    surface_plot_kwargs : SurfacePlotKwargType | None
         Kwargs to be passed to PlotType._plot_surfaces.
 
     Returns
@@ -596,12 +685,15 @@ def model_plot(  # noqa: PLR0913
     # get ax this way so that its a flat list for 1 or multiple axes.
     ax = fig.axes
 
-    # create maps for kwargs that can be passed to plot_type.plot.
-    kwarg_map = {
+    # create map for kwargs that can be passed to plot_type.plot.
+    kwarg_map: dict[
+        PlotType, SldPlotKwargType | VfpPlotKwargType | SurfacePlotKwargType
+    ] = {
         PlotType.SLD: sld_plot_kwargs,
         PlotType.VFP: vfp_plot_kwargs,
         PlotType.SURFACES: surface_plot_kwargs,
     }
+    get_sld_axtwinx_fn = setup_axtwinx_cache()
 
     # plot posterior samples:
     if posterior_samples is not None:
@@ -612,7 +704,7 @@ def model_plot(  # noqa: PLR0913
             raise ValueError("Posterior samples are of different lengths.")
 
         plot_fn_args_map_posterior = {
-            PlotType.SLD: (vfp, True),
+            PlotType.SLD: (vfp, True, get_sld_axtwinx_fn),
             PlotType.VFP: (vfp, True),
         }
 
@@ -631,10 +723,10 @@ def model_plot(  # noqa: PLR0913
                 axis.plot_type.plot(ax[axis], *plot_args, **plot_kwargs)
 
     # plot main profiles.
-    vfp.varying_parameters = original_ps  # set to original values.
-
+    if vfp.varying_parameters is not None:
+        vfp.varying_parameters = original_ps  # set to original values.
     plot_fn_args_map = {
-        PlotType.SLD: (vfp, False),
+        PlotType.SLD: (vfp, False, get_sld_axtwinx_fn),
         PlotType.VFP: (vfp, False),
         PlotType.SURFACES: (vfp, surfaces, surface_points),
     }
@@ -645,7 +737,22 @@ def model_plot(  # noqa: PLR0913
         plot_kwargs = plot_kwargs if plot_kwargs is not None else {}
         axis.plot_type.plot(ax[axis], *plot_args, **plot_kwargs)
 
+    ax[-1].set_xlabel(r"Distance over Interface / $\mathrm{\AA{}}$")
+    # plt.show()
     return fig, ax
+
+
+def setup_axtwinx_cache() -> Callable[[Axes], Axes]:
+    axtwinx_cache: dict[Axes, Axes] = {}
+
+    def get_axtwinx(ax: Axes) -> Axes:
+        axtwinx = axtwinx_cache.get(ax)
+        if axtwinx is None:
+            axtwinx = ax.twinx()
+            axtwinx_cache[ax] = axtwinx
+        return axtwinx
+
+    return get_axtwinx
 
 
 def _gen_sld_profile(
@@ -654,6 +761,10 @@ def _gen_sld_profile(
     """
     Calculate sld profiles (nuclear, magnetic and imaginary) from the VFP.
 
+    The purpose of this function is to create the step-like affect
+    to reconstruct the sld profile modelled. To do this, we reconstruct
+    from `vfp.dz`
+
     Parameters
     ----------
     vfp : BaseVFP
@@ -661,68 +772,47 @@ def _gen_sld_profile(
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray]:
+    tuple[np.ndarray, np.ndarray]
         Contains the z distance (first index in tuple) over the interface and
         a 2D array of slds in order of sldn, sldi, sldm.
     """
-    # grab the original nSLD and mSLDs
-    slds = vfp.get_slds()
+    vfp.process_model()
+    # derive zeds and average slds from dzs and slds.
+    all_slds = vfp.get_slds()
+    mid_slds = np.vstack(
+        [0.5 * np.diff(slds) + slds[:-1] for slds in all_slds]
+    )
+    av_slds = np.vstack([np.ones_like(row_slds) for row_slds in mid_slds])
+    av_slds = av_slds * mid_slds
+    # zeds from dz
+    o_z, _ = vfp.z_and_sld()
+    o_z = o_z[::-1] if vfp.vfp_attrs.orientation == "back" else o_z
+    reconstruc_zeds = np.ones(shape=(vfp.dz.size + 1)) * o_z[0]
+    reconstruc_zeds[1:] += np.cumsum(vfp.dz)
+    multiplier = 19 if vfp.vfp_attrs.orientation == "back" else 1
+    zed_step_insert = reconstruc_zeds[1:] - (
+        multiplier * float(vfp.vfp_attrs.max_delta_z) / 20
+    )
+    zed_step = np.sort(np.concatenate([reconstruc_zeds, zed_step_insert]))
+    all_slds = np.ones_like(zed_step, dtype=float)[:, None] * av_slds[:, 0]
+    # first value needs a difference of 0 as we start at this point.
+    delta_all_slds = np.hstack(
+        (np.zeros(shape=(3, 1)), (av_slds[:, 1:] - av_slds[:, :-1]))
+    )
 
-    # get the average between each nuclear and magnetic SLD value.
-    av_slds = [0.5 * np.diff(sld_row) + sld_row[:-1] for sld_row in slds]
-
-    # init arrays for final slds.
-    fin_slds = np.ones_like(slds)
-
-    if vfp.vfp_attrs.orientation == "front":
-        for i, av_sld in enumerate(av_slds):
-            # fill all but last with average slds.
-            fin_slds[i, :-1] = fin_slds[i, :-1] * av_sld
-            # now set the final sld value to those from the micro arrays.
-            fin_slds[i, -1] = slds[i, -1]
-
-    elif vfp.vfp_attrs.orientation == "back":
-        for i, av_sld in enumerate(av_slds):
-            # do the same but backwards for back orientations.
-            fin_slds[i, 1:] = fin_slds[i, 1:] * av_sld[::-1]
-            # now set the final sld value to those from the micro arrays.
-            fin_slds[i, 0] = slds[i, -1]
-
-    # init a 2D array (Nlayers, 5)
-    microslices = np.zeros(shape=(vfp.dz.size, 4))
-
-    # populate microslices with microslab thicknesses & slds.
-    microslices[:, 0] = vfp.dz
-    microslices[:, 1:4] = fin_slds.T
-
-    # calc how many layers, total z distance, start and end points.
-    nslices = np.size(microslices, axis=0)
-    dist = np.cumsum(microslices[:, 0])
-    zstart = -5
-    zend = 5 + dist[-1]
-
-    # workout how much space the sld profile should encompass
-    # (z array not provided)
-    # use twice as many points as the real sld profile
-    max_delta_z = float(vfp.vfp_attrs.max_delta_z) / 2
-    npnts = int(np.ceil((zend - zstart) / max_delta_z)) + 1
-    zed = np.linspace(zstart, zend, num=npnts)
-
-    # the output arrays - starting sld value at zero.
-    all_slds = np.ones_like(zed, dtype=float)[:, None] * microslices[0, 1:4]
-
-    # work out the step in sld at an interface
-    # the delta arrays are shape (nlayers - 1)
-    delta_all_slds = microslices[1:, 1:4] - microslices[:-1, 1:4]
-
-    stepper = Step()
     # accumulate the sld of each step.
-    for i in range(nslices - 1):
+    # with scale = 0, this gives a 1 or 0 if x >= or < loc.
+    for i in range(av_slds.shape[1] - 1):
         all_slds += (
-            stepper(zed, scale=0, loc=dist[i])[:, None] * delta_all_slds[i]
+            heaviside_step(zed_step, loc=reconstruc_zeds[i])[:, None]
+            * delta_all_slds[:, i]
         )
 
-    return zed, all_slds
+    zed_step = (
+        zed_step[::-1] if vfp.vfp_attrs.orientation == "back" else zed_step
+    )
+
+    return zed_step, all_slds
 
 
 def _tot_sld(all_slds: np.ndarray, ss: str) -> tuple[np.ndarray, str]:

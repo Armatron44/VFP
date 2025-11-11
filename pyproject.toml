@@ -14,6 +14,9 @@ matplotlib = "^3.10"
 numpy = "^2.2"
 scipy = "^1.16"
 numba = "^0.61.2"
+refnx = {version = "^0.1.51", optional = true}
+bumps = {version = "^1.0.1", optional = true}
+refl1d = {version = "^1.0.0", optional = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
@@ -22,21 +25,21 @@ jupyter = "^1.0.0"
 ruff = "^0.9.3"
 black = "^24.10.0"
 tqdm = "^4.67.1"
-myst-nb = "^1.2.0"
-sphinx-autoapi = "^3.4.0"
-sphinx-rtd-theme = "^3.0.2"
 deptry = "^0.23.0"
-sphinx-math-dollar = "^1.2.1"
 pathos = "^0.3.4"
 pre-commit = "^4.2.0"
 isort = "^6.0.1"
 
-[tool.poetry.group.refnx.dependencies]
-refnx = "^0.1.51"
+[tool.poetry.group.docs.dependencies]
+myst-nb = "^1.2.0"
+sphinx-autoapi = "^3.4.0"
+sphinx-rtd-theme = "^3.0.2"
+sphinx-math-dollar = "^1.2.1"
+sphinx-book-theme = "^1.1.4"
 
-[tool.poetry.group.refl1d.dependencies]
-bumps = "^1.0.1"
-refl1d = {git = "https://github.com/reflectometry/refl1d.git", rev = "v1.0.0b1"}
+[tool.poetry.extras]
+refnx = ["refnx"]
+refl1d = ["bumps", "refl1d"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

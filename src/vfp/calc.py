@@ -35,13 +35,15 @@ def consecutive(arr: np.ndarray) -> list[np.ndarray]:
     >>> consecutive(idxs)
     [array([1, 2, 3]), array([5, 6])]
     """
-
-    return np.split(arr, (np.diff(arr) != 1).nonzero()[0] + 1)
+    if arr.size > 1:
+        return np.split(arr, (np.diff(arr) != 1).nonzero()[0] + 1)
+    else:
+        return [arr]
 
 
 @lru_cache(maxsize=2)
 def calc_dzs(
-    zstart: float, zend: float, points: int, idxs: tuple[int]
+    zstart: float, zend: float, points: int, idxs: tuple[int, ...]
 ) -> np.ndarray:
     """
     Calculates the thickness (z) of each microslice.
@@ -51,6 +53,9 @@ def calc_dzs(
 
     However, where a microslice's index is defined in `idxs`,
     the microslice is combined with the previous microslice.
+    The size of the returned dzs is `points` - n where = n is the
+    number of consecutive idxs. For example, `idxs=(1, 2, 3, 5, 6)`,
+    `dz.size` = points - 3
 
     Parameters
     ----------
@@ -60,11 +65,12 @@ def calc_dzs(
         z value of where VFP ends.
     points : int
         number of microslices in the VFP model.
-    idxs : tuple[int]
-        indices of nodes in the VFP that are approximately equal to a
-        neighbouring node as defined in `self.init_demag`. These indices are
-        used to calculate the thickness of each microslice across an uneven z
-        space after reduction.
+    idxs : tuple[int, ...]
+        indices of differences between neighbouring pairs in the VFP that are
+        approximately equal to a neighbouring node as defined in
+        `self.init_demag`. These indices are used to calculate the thickness
+        of each microslice across an uneven z space after reduction.
+        dz calculated over idxs i, i+1, ..., n will be (1 + n - i) * spacing.
 
     Returns
     -------
@@ -75,59 +81,31 @@ def calc_dzs(
     --------
     >>> import numpy as np
     >>> from vfp.calc import calc_dzs
-    >>> indices = (2, 3, 4) # the 3rd, 4th and 5th microslices have same SLD.
-    >>> calc_dzs(zstart=-3, zend=3, points=7, idxs=indices)
-    array([1., 1., 4., 1.])
+    >>> np.linspace(-3, 3, 7) # location of z points
+    array([-3, -2, -1, 0, 1, 2, 3])
+    >>> indices = (2, 3, 4) # skip the diffences at indices 2, 3 & 4.
+    >>> dzs = calc_dzs(zstart=-3, zend=3, points=7, idxs=indices)
+    >>> dzs
+    array([1., 1., 3., 1.])
+    >>> -3 + dzs.sum()
+    np.float64(3.0)
     """
-
     idxs = np.array(idxs)
 
     # find thickness of microslabs without reduction.
     delta_step = (-zstart + zend) / (points - 1)
 
-    # if idxs is empty, then each dz is 1 * delta_step.
-    if not idxs.any():
-        dzs = np.ones(points) * delta_step
-
+    # set up thicknesses.
+    dzs = np.ones(points - 1) * delta_step
     # if there are indices, then dzs needs to be altered
     # to include slabs that are > delta_step
-    else:
+    if idxs.any():
         indexs = consecutive(idxs)
-        indexs_diffs = [
-            j[-1] - j[0] for j in indexs
-        ]  # find length of each zone and return in a list.
-        indexs_starts = [j[0] for j in indexs]  # where does each zone start?
-        indexs_ends = [j[-1] for j in indexs]  # where does each zone end?
-
-        # calculate the distance between indicies of interest
-        index_gaps = np.array(
-            [
-                j - (indexs_ends[i - 1] + 1)
-                for i, j in enumerate(indexs_starts)
-                if i > 0
-            ]
-        )
-        # number of slabs required.
-        new_points = points - (np.array(indexs_diffs).sum() + len(indexs))
-        new_indexs_starts = [
-            indexs_starts[0] + index_gaps[:i].sum()
-            for i in range(0, len(indexs))
-        ]
-
-        # init an array for dzs. make all values delta step to begin with.
-        dzs = np.ones(new_points) * delta_step
-
-        # find places where delta step needs to be altered.
-        if len(new_indexs_starts) > 1:
-            for i, j in enumerate(new_indexs_starts):
-                dzs[j] = ((indexs_diffs[i] + 1) * delta_step) + dzs[j - 1]
-
-        # alter dz in the one place required.
-        else:
-            dzs[int(new_indexs_starts[0])] = (
-                (indexs_diffs[0] + 1) * delta_step
-            ) + dzs[int(new_indexs_starts[0] - 1)]
-
+        block_thicks = np.array([delta_step * (arr.size) for arr in indexs])
+        indexs_starts = np.array([j[0] for j in indexs])
+        dzs[indexs_starts] = block_thicks
+        indices_to_remove = np.concatenate([arr[1:] for arr in indexs])
+        dzs = np.delete(dzs, indices_to_remove)
     return dzs
 
 
@@ -362,7 +340,7 @@ def init_demag(
     np.array
         Reduced mag_comp. (2d) - Shape = (Nlayers, len(z) - len(idxs))
     np.array
-        Indices of where to remove points from vfp and mag_comp.
+        Indices of where vfp is ~ invariant with next neighbouring point.
     np.array
         Shape = (Nlayers, len(z))
         Magnetic demagnetisation before multiplication with VFP.
@@ -393,15 +371,36 @@ def init_demag(
         np.abs(np.diff(mag_comp, axis=1)) < MICROSLICE_EQUIVALENCE_THRESHOLD
     )
     reduce_diff_arr = np.all(difference_arr, axis=0)
-    indices_full = np.nonzero(reduce_diff_arr)
-
-    # shift indices along by 1 & don't take last value of indices_full.
-    idxs = (indices_full[0] + 1)[:-1]
-
+    (indices_full,) = np.nonzero(reduce_diff_arr)
     # now remove parts of the vfps and mag_comp where they are ~ invariant.
-    reduced_vfp = np.delete(vfp, idxs, 1)
-    reduced_magcomp = np.delete(mag_comp, idxs, 1)
-    return reduced_vfp, reduced_magcomp, idxs, demag_arr
+    # remove the i+1 values, except the last in a block
+    to_delete_indices = transform_indices(indices_full)
+    reduced_vfp = np.delete(vfp, to_delete_indices, 1)
+    reduced_magcomp = np.delete(mag_comp, to_delete_indices, 1)
+    return reduced_vfp, reduced_magcomp, indices_full, demag_arr
+
+
+def transform_indices(indices: tuple[int, ...] | np.ndarray) -> np.ndarray:
+    """
+    Use with vfp.indices to transform to indices suitable for
+    reducing values from zed, vfp and sld.
+
+    Parameters
+    ----------
+    indices : tuple[int, ...] | np.ndarray
+        indices where the next point is roughly invariant.
+
+    Returns
+    -------
+    np.ndarray
+    """
+    indices = np.asarray(indices)
+    to_delete_indices = indices + 1
+    seperate_indices = consecutive(to_delete_indices)
+    final_to_delete_indices = np.concatenate(
+        [arr[:-1] for arr in seperate_indices]
+    )
+    return final_to_delete_indices
 
 
 def get_demag(
@@ -541,3 +540,27 @@ def integrate_vfp(
         integrals.append(layer_integral)
 
     return integrals
+
+
+def heaviside_step(z: np.ndarray, loc: float = 0) -> np.ndarray:
+    """
+    Get heaviside step function over support `z`, where centre is `loc`.
+
+    output y = 1 if z >= loc else 0.
+
+    Parameters
+    ----------
+    z : np.ndarray
+        points at which to evaluate function.
+    loc : float, optional
+        Location of transition.
+
+    Returns
+    -------
+    np.ndarray
+    """
+    centred_z = z - loc
+    f = np.empty_like(centred_z)
+    f[centred_z < 0] = 0
+    f[centred_z >= 0] = 1
+    return f

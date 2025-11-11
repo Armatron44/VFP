@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Protocol, TypedDict
 
 """
 Define a type alias `ParameterLike` which is conditional on the available
@@ -46,3 +46,24 @@ class SLDConstraintType(Protocol):
     def __call__(
         self, layer_integrals: list[float]
     ) -> tuple[list[int], list[float]]: ...
+
+
+class LayerMaterialFraction(TypedDict):
+    name: str
+    solvation: ParameterLike
+
+
+class SldPlotKwargType(TypedDict, total=False):
+    microslice: bool
+    total_sld: bool
+
+
+class VfpPlotKwargType(TypedDict, total=False):
+    layer_materials: dict[int, LayerMaterialFraction]
+    colours: tuple[tuple[float, float, float], ...]
+    total_vf: bool
+    labels: list[str]
+
+
+class SurfacePlotKwargType(TypedDict, total=False):
+    colours: tuple[tuple[float, float, float], ...]
