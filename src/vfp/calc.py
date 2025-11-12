@@ -526,8 +526,9 @@ def integrate_vfp(
     layer_indices = list(layer_indices)
 
     if idxs.size > 0:
+        to_delete_idxs = transform_indices(idxs)
         integrate_over = np.delete(
-            zs, idxs
+            zs, to_delete_idxs
         )  # get zed values to integrate over.
     else:
         integrate_over = zs
