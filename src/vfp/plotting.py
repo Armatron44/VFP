@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Callable
 from enum import IntEnum, StrEnum, auto
-from typing import TYPE_CHECKING, Literal, Unpack
+from typing import TYPE_CHECKING, Literal
 
 # third party
 import matplotlib
@@ -37,6 +37,7 @@ class PlotType(StrEnum):
         vfp: BaseVFP,
         posterior: bool,
         get_axtwinx: Callable[[Axes], Axes],
+        *,
         microslice: bool = True,
         total_sld: bool = False,
     ) -> None:
@@ -54,6 +55,9 @@ class PlotType(StrEnum):
             function.
         get_axtwinx : Callable[[Axes], Axes]
             Pass ax to return a twinned x axes object.
+
+        Kwargs
+        ------
         microslice : bool, optional
             Flag to plot sld as microsliced slabs as fed into refnx / refl1d.
             If False, continuous sld is plotted as calculated from vfp.
@@ -126,6 +130,7 @@ class PlotType(StrEnum):
         ax: Axes,
         vfp: BaseVFP,
         posterior: bool,
+        *,
         layer_materials: dict[int, LayerMaterialFraction] | None = None,
         colours: tuple[tuple[float, float, float], ...] | None = None,
         total_vf: bool = True,
@@ -149,13 +154,16 @@ class PlotType(StrEnum):
             Concrete child instance of BaseVFP to plot.
         posterior : bool
             Flag to indicate if plotting posterior samples.
+
+        Kwargs
+        ------
         layer_materials : dict[int, LayerMaterialFraction] | None, optional
             Each key is the layer number (e.g fronting = 0), while
             the value should be a `LayerMaterialFraction` dict, where
             the keys are the material names, and values are `ParameterLike`
             (float, int, refnxParameter, BumpsParameter). The material
             names are used as labels, and will overwrite the `labels`
-            parameter.
+            kwarg.
         colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot vfp profile. Posterior samples are plotted in
             every second colour, while the nominal profile of each layer
@@ -165,15 +173,29 @@ class PlotType(StrEnum):
             summing across all layers' volume fractions. Defaults to True.
         labels : list[str] | None , optional
             Labels to be applied to the legend of the volume fraction profile.
+            Order of labels should match the order of layers in vfp, from
+            fronting to backing.
         """
+        # get default labels
+        def_labels = [f"Layer {i}" for i in range(len(vfp.tup_thicks) + 1)]
+        def_labels[0], def_labels[-1] = "Fronting", "Backing"
+
         if labels is None:
-            labels = [f"Layer {i}" for i in range(len(vfp.tup_thicks) + 1)]
-            labels[0], labels[-1] = "Fronting", "Backing"
+            labels = def_labels
             labels = (
                 labels[::-1]
                 if vfp.vfp_attrs.orientation == "back"
                 else labels
             )
+        else:
+            # merge labels with default labels. This way, if too many
+            # labels are supplied, the excess are ignored. Otherwise if
+            # too little are supplied, fall back on using a merge of
+            # supplied and default.
+            labels = [
+                labels[i] if i < len(labels) else def_labels[i]
+                for i in range(len(def_labels))
+            ]
         colours = (
             colours
             if colours is not None
@@ -251,6 +273,7 @@ class PlotType(StrEnum):
         vfp: BaseVFP,
         surfaces: np.ndarray,
         points: int,
+        *,
         colours: tuple[tuple[float, float, float], ...] | None = None,
     ) -> None:
         """
@@ -266,6 +289,9 @@ class PlotType(StrEnum):
             RVs to plot.
         points : int
            Number of points to plot across the surfaces
+
+        Kwargs
+        ------
         colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot. Defaults to tab20
         """
@@ -357,13 +383,7 @@ class PlotType(StrEnum):
                 (len(vfp.tup_thicks) + 1) * 3
             )  # borders will be higher than surfaces and fills.
 
-    def plot(
-        self,
-        *args,
-        **kwargs: Unpack[
-            SldPlotKwargType | VfpPlotKwargType | SurfacePlotKwargType
-        ],
-    ) -> None:
+    def plot(self, *args, **kwargs) -> None:
         """
         Wraps specific plot functions depending on PlotType.
         """

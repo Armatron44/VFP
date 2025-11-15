@@ -437,7 +437,7 @@ class BaseVFP(ABC):
         surface_plot_kwargs: SurfacePlotKwargType | None = None,
     ) -> tuple[Figure, Axes | np.ndarray[Axes]]:
         """
-        Makes a one to three axis figure to visualise VFP model.
+        Makes a one to three axis figure to visualise the VFP model.
 
         By default the order of the plots are:
             Top plot = nsld / msld / isld
@@ -469,13 +469,13 @@ class BaseVFP(ABC):
             If supplied, plots will be plotted on `fig`.
             By default a new Figure will be created.
         sld_plot_kwargs : SldPlotKwargType | None, optional
-            Kwargs to be passed to vfp.plotting.PlotType._plot_sld.
+            Kwargs to be passed to `vfp.plotting.PlotType._plot_sld`.
             By default None.
         vfp_plot_kwargs : VfpPlotKwargType | None, optional
-            Kwargs to be passed to vfp.plotting.PlotType._plot_vfp.
+            Kwargs to be passed to `vfp.plotting.PlotType._plot_vfp`.
             By default None.
         surface_plot_kwargs : SurfacePlotKwargType | None, optional
-            Kwargs to be passed to vfp.plotting.PlotType._plot_surfaces.
+            Kwargs to be passed to `vfp.plotting.PlotType._plot_surfaces`.
             By default None.
 
         Returns
