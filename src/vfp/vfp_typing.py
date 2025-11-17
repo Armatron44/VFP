@@ -1,5 +1,7 @@
 from typing import Protocol, TypedDict
 
+import numpy as np
+
 """
 Define a type alias `ParameterLike` which is conditional on the available
 dependencies to `vfp`. `ParameterLike` is the union of `float`, `int`,
@@ -66,4 +68,6 @@ class VfpPlotKwargType(TypedDict, total=False):
 
 
 class SurfacePlotKwargType(TypedDict, total=False):
+    surface_points: int
+    surface_rng: np.random.Generator
     colours: tuple[tuple[float, float, float], ...]

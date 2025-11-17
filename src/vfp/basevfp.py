@@ -429,8 +429,6 @@ class BaseVFP(ABC):
         self,
         plots_required: list[Literal["sld", "vfp", "surfaces"]] | None = None,
         posterior_samples: dict[str, np.ndarray] | None = None,
-        surface_points: int = 50,
-        surface_rng: np.random.Generator | None = None,
         fig: Figure | None = None,
         sld_plot_kwargs: SldPlotKwargType | None = None,
         vfp_plot_kwargs: VfpPlotKwargType | None = None,
@@ -457,14 +455,6 @@ class BaseVFP(ABC):
             The keys should match the names of varying parameters in the vfp.
             Array values should be 1D of parameter values.
             By default is None.
-        surface_points : integer, optional
-            Number of points to simulate across each interface.
-            By default, 50.
-        surface_rng : np.random.Generator | None, optional
-            Random number generator for producing draws from each interface's
-            modelled distribution. If supplied, will generate deterministic
-            draws so that the results are repeatable. If not supplied, a
-            random seed will be set when calling this function.
         fig : Figure | None, optional.
             If supplied, plots will be plotted on `fig`.
             By default a new Figure will be created.
@@ -503,18 +493,12 @@ class BaseVFP(ABC):
                 f"plots_required must be a list, got {type(plots_required)}."
             )
 
-        surface_rng = (
-            surface_rng
-            if surface_rng is not None
-            else np.random.default_rng()
-        )
-
         fig, ax = model_plot(
             vfp=self,
             plots_required=plots_required,
             posterior_samples=posterior_samples,
-            surface_points=surface_points,
-            surface_rng=surface_rng,
+            # surface_points=surface_points,
+            # surface_rng=surface_rng,
             fig=fig,
             sld_plot_kwargs=sld_plot_kwargs,
             vfp_plot_kwargs=vfp_plot_kwargs,

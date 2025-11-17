@@ -271,9 +271,9 @@ class PlotType(StrEnum):
         self,
         ax: Axes,
         vfp: BaseVFP,
-        surfaces: np.ndarray,
-        points: int,
         *,
+        surface_points: int = 50,
+        surface_rng: np.random.Generator | None = None,
         colours: tuple[tuple[float, float, float], ...] | None = None,
     ) -> None:
         """
@@ -285,16 +285,33 @@ class PlotType(StrEnum):
             Which axes to plot vfp profile on.
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
-        surfaces : np.ndarray
-            RVs to plot.
-        points : int
-           Number of points to plot across the surfaces
 
         Kwargs
         ------
+        surface_points : integer, optional
+            Number of points to simulate across each interface.
+            By default, 50.
+        surface_rng : np.random.Generator | None, optional
+            Random number generator for producing draws from each interface's
+            modelled distribution. If supplied, will generate deterministic
+            draws so that the results are repeatable. If not supplied, a
+            random seed will be set when calling this function.
         colours : tuple[tuple[float, float, float], ...] | None, optional
             Colours to plot. Defaults to tab20
         """
+        surface_rng = (
+            surface_rng
+            if surface_rng is not None
+            else np.random.default_rng()
+        )
+
+        if surface_points <= 0:
+            raise ValueError("surface_points must be > 0.")
+
+        # add on two additional points to create fill effect on surfaces
+        surface_points += 2
+        surfaces = surfaces_for_display(vfp, surface_points, surface_rng)
+
         n_interf = len(vfp.tup_thicks)
         # get default colours if non specified.
         colours = (
@@ -329,7 +346,7 @@ class PlotType(StrEnum):
         for i, j in enumerate(surfaces):  # do the surfaces
             ax.plot(
                 j,
-                range(0, points),
+                range(0, surface_points),
                 marker=".",
                 zorder=points_zorder[i],
                 color=points_colours[i % len(points_colours)],  # loop colours
@@ -338,7 +355,7 @@ class PlotType(StrEnum):
         for i in range(0, n_interf + 1):  # then do the fills
             if i == 0:
                 ax.fill_betweenx(
-                    y=range(0, points),
+                    y=range(0, surface_points),
                     x1=def_xlower_lim,
                     x2=surfaces[i],
                     interpolate=True,
@@ -348,7 +365,7 @@ class PlotType(StrEnum):
 
             elif i < len(vfp.tup_thicks):
                 ax.fill_betweenx(
-                    y=range(0, points),
+                    y=range(0, surface_points),
                     x1=surfaces[i - 1],
                     x2=surfaces[i],
                     where=surfaces[i] > surfaces[i - 1],
@@ -359,7 +376,7 @@ class PlotType(StrEnum):
 
             elif i == len(vfp.tup_thicks):
                 ax.fill_betweenx(
-                    y=range(0, points),
+                    y=range(0, surface_points),
                     x1=surfaces[i - 1],
                     x2=def_xupper_lim,
                     where=def_xupper_lim > surfaces[i - 1],
@@ -370,7 +387,9 @@ class PlotType(StrEnum):
 
         # define some y limits for ax[2] that allow for points > 0.
         ylower = 0.5
-        yupper = (points - 2) + ((points - 1) - (points - 2)) / 2
+        yupper = (surface_points - 2) + (
+            (surface_points - 1) - (surface_points - 2)
+        ) / 2
 
         # ax.set_xlabel(r"Distance over Interface / $\mathrm{\AA{}}$")
         ax.set_yticks([])
@@ -629,8 +648,6 @@ def model_plot(  # noqa: PLR0913
     vfp: BaseVFP,
     plots_required: list[Literal["sld", "vfp", "surfaces"]],
     posterior_samples: dict[str, np.ndarray] | None,
-    surface_points: int,
-    surface_rng: np.random.Generator,
     fig: Figure | None,
     sld_plot_kwargs: SldPlotKwargType | None,
     vfp_plot_kwargs: VfpPlotKwargType | None,
@@ -654,11 +671,6 @@ def model_plot(  # noqa: PLR0913
         The keys should match the names of varying parameters in the vfp.
         Array values should be 1D of parameter values.
         If None, no posterior samples will be plotted.
-    surface_points : int
-        Number of points to simulate across each interface.
-    surface_rng : np.random.Generator
-        Random number generator for producing draws from each interface's
-        modelled distribution.
     fig : Figure | None
         If supplied, plots will be plotted on `fig`. If None, a new Figure
         will be created.
@@ -674,17 +686,10 @@ def model_plot(  # noqa: PLR0913
     tuple[Figure, Axes | np.ndarray[Axes]]
         Figure and axes objects.
     """
-    if surface_points <= 0:
-        raise ValueError("surface_points must be > 0.")
-
     # get axes index for required plots.
     axes_enum = AxesIndex.from_requested_plots_list(
         requested_plots=plots_required
     )
-
-    # add on two additional points to create fill effect on surfaces
-    surface_points += 2
-    surfaces = surfaces_for_display(vfp, surface_points, surface_rng)
 
     # get original vfp varying_parameter values
     original_ps = copy.deepcopy(vfp.varying_parameters)
@@ -748,7 +753,7 @@ def model_plot(  # noqa: PLR0913
     plot_fn_args_map = {
         PlotType.SLD: (vfp, False, get_sld_axtwinx_fn),
         PlotType.VFP: (vfp, False),
-        PlotType.SURFACES: (vfp, surfaces, surface_points),
+        PlotType.SURFACES: (vfp,),
     }
 
     for axis in axes_enum:
