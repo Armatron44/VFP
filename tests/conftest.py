@@ -194,13 +194,12 @@ def plot_kwargs(posterior_samples_setup, materials_by_layer_setup):
     posterior_samples = posterior_samples_setup
     materials_by_layer = materials_by_layer_setup
 
-    base_plot_kwargs = dict(
-        surface_rng=surface_rng, posterior_samples=posterior_samples
-    )
+    base_plot_kwargs = dict(posterior_samples=posterior_samples)
     addn_plot_kwargs = [
         {
             "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
             "sld_plot_kwargs": {"microslice": True, "total_sld": True},
+            "surface_plot_kwargs": {"surface_rng": surface_rng},
         },
         {
             "plots_required": ["sld", "vfp"],
@@ -208,7 +207,10 @@ def plot_kwargs(posterior_samples_setup, materials_by_layer_setup):
             "sld_plot_kwargs": {"microslice": False, "total_sld": False},
         },
         {"plots_required": ["vfp"], "posterior_samples": None},
-        {"plots_required": ["surfaces", "vfp"]},
+        {
+            "plots_required": ["surfaces", "vfp"],
+            "surface_plot_kwargs": {"surface_rng": surface_rng},
+        },
     ]
 
     keys = [

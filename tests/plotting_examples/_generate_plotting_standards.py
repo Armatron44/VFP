@@ -4,7 +4,6 @@ These plots should not be regenerated unless some plotting change is required.
 
 import pathlib
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from refnx.analysis import Parameter
@@ -161,13 +160,12 @@ vfps = [vfp.refnxVFP(**f_kwarg) for f_kwarg in final_kwargs]
 
 surface_rng = np.random.default_rng(seed=42)
 
-base_plot_kwargs = dict(
-    surface_rng=surface_rng, posterior_samples=posterior_samples
-)
+base_plot_kwargs = dict(posterior_samples=posterior_samples)
 addn_plot_kwargs = [
     {
         "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
         "sld_plot_kwargs": {"microslice": True, "total_sld": True},
+        "surface_plot_kwargs": {"surface_rng": surface_rng},
     },
     {
         "plots_required": ["sld", "vfp"],
@@ -175,7 +173,10 @@ addn_plot_kwargs = [
         "sld_plot_kwargs": {"microslice": False, "total_sld": False},
     },
     {"plots_required": ["vfp"], "posterior_samples": None},
-    {"plots_required": ["surfaces", "vfp"]},
+    {
+        "plots_required": ["surfaces", "vfp"],
+        "surface_plot_kwargs": {"surface_rng": surface_rng},
+    },
 ]
 final_plot_kwargs = [
     base_plot_kwargs | akwargs for akwargs in addn_plot_kwargs
@@ -211,7 +212,7 @@ descrips = [
     "front_mdz_01_ss_down_surfacesvfp",
 ]
 
-plt.show()
+# plt.show()
 plots_dict = {
     descp: im_arr for descp, im_arr in zip(descrips, image_arrs, strict=False)
 }
