@@ -330,7 +330,7 @@ class BaseVFP(ABC):
         return p_vfp, demag_vfp
 
     def z_and_sld(
-        self, reduced: bool = True
+        self, reduced: bool = True, align_at_layer: int = 0
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Get z and sld values from vfp for plotting.
@@ -342,6 +342,9 @@ class BaseVFP(ABC):
         ----------
         reduced : bool
             If False/True, will return full/reduced zs and slds.
+        align_at_layer : int, optional
+            Which interface index to set z = 0. Defaults to
+            first interface.
 
         Returns
         -------
@@ -352,21 +355,14 @@ class BaseVFP(ABC):
             Either reduced or full.
         """
         self.process_model()  # update the model.
-        z = np.array(self.zeds)
+        offset = np.cumsum(self.tup_thicks)[align_at_layer]
+        z = np.array(self.zeds) - offset
+        z = -z if self.vfp_attrs.orientation == "back" else z
+        slds = self.get_slds(reduced=reduced)
         # conditionally remove z at indices.
         if reduced:
             delete_idx = transform_indices(self.indices)
             z = np.delete(z, delete_idx)
-
-        if self.vfp_attrs.orientation == "front":
-            slds = self.get_slds(reduced=reduced)
-
-        # if reverse orientation, subtract length of interface & flip.
-        if self.vfp_attrs.orientation == "back":
-            slds = self.get_slds(reduced=reduced)
-            offset = np.sum(self.tup_thicks)
-            z = -(z - offset)
-
         return z, slds.T
 
     def sld_offset(self) -> float:
@@ -429,6 +425,7 @@ class BaseVFP(ABC):
         self,
         plots_required: list[Literal["sld", "vfp", "surfaces"]] | None = None,
         posterior_samples: dict[str, np.ndarray] | None = None,
+        align_at: int | None = None,
         fig: Figure | None = None,
         sld_plot_kwargs: SldPlotKwargType | None = None,
         vfp_plot_kwargs: VfpPlotKwargType | None = None,
@@ -455,6 +452,9 @@ class BaseVFP(ABC):
             The keys should match the names of varying parameters in the vfp.
             Array values should be 1D of parameter values.
             By default is None.
+        align_at : int | None, optional
+            Specifies which interface is defined as z = 0 by index.
+            If not specified, defaults to first interface.
         fig : Figure | None, optional.
             If supplied, plots will be plotted on `fig`.
             By default a new Figure will be created.
@@ -493,12 +493,15 @@ class BaseVFP(ABC):
                 f"plots_required must be a list, got {type(plots_required)}."
             )
 
+        if isinstance(align_at, int):
+            if align_at > len(self.vfp_attrs.thicknesses) - 1:
+                raise ValueError("align_at must be an index of the layers.")
+
         fig, ax = model_plot(
             vfp=self,
             plots_required=plots_required,
             posterior_samples=posterior_samples,
-            # surface_points=surface_points,
-            # surface_rng=surface_rng,
+            align_at=align_at,
             fig=fig,
             sld_plot_kwargs=sld_plot_kwargs,
             vfp_plot_kwargs=vfp_plot_kwargs,
