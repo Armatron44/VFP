@@ -19,20 +19,37 @@ PLOTTING_EXAMPLES_MAP = {
         "front",
         "allplots_layermats_mslice_tsld",
     ): "front_allplots_layermats_mslice_tsld",
+    (
+        "front",
+        "allplots_layermats_mslice_align_at_2",
+    ): "front_allplots_layermats_mslice_align_at_2",
     ("front", "sldvfpplots_layermats"): "front_sldvfpplots_layermats",
     ("front", "vfp_post"): "front_vfp_post",
     ("front", "surfacesvfp"): "front_surfacesvfp",
+    ("front", "surfacesvfp_align_at_3"): "front_surfacesvfp_align_at_3",
     (
         "back_ssup",
         "allplots_layermats_mslice_tsld",
     ): "back_ssup_allplots_layermats_mslice_tsld",
+    (
+        "back_ssup",
+        "allplots_layermats_mslice_align_at_2",
+    ): "back_ssup_allplots_layermats_mslice_align_at_2",
     ("back_ssup", "sldvfpplots_layermats"): "back_ssup_sldvfpplots_layermats",
     ("back_ssup", "vfp_post"): "back_ssup_vfp_post",
     ("back_ssup", "surfacesvfp"): "back_ssup_surfacesvfp",
     (
+        "back_ssup",
+        "surfacesvfp_align_at_3",
+    ): "back_ssup_surfacesvfp_align_at_3",
+    (
         "front_mdz_01_ss_down",
         "allplots_layermats_mslice_tsld",
     ): "front_mdz_01_ss_down_allplots_layermats_mslice_tsld",
+    (
+        "front_mdz_01_ss_down",
+        "allplots_layermats_mslice_align_at_2",
+    ): "front_mdz_01_ss_down_allplots_layermats_mslice_align_at_2",
     (
         "front_mdz_01_ss_down",
         "sldvfpplots_layermats",
@@ -42,6 +59,10 @@ PLOTTING_EXAMPLES_MAP = {
         "front_mdz_01_ss_down",
         "surfacesvfp",
     ): "front_mdz_01_ss_down_surfacesvfp",
+    (
+        "front_mdz_01_ss_down",
+        "surfacesvfp_align_at_3",
+    ): "front_mdz_01_ss_down_surfacesvfp_align_at_3",
 }
 
 
@@ -68,6 +89,11 @@ standard_plot_examples = [
         "allplots_layermats_mslice_tsld",
     ),
     (
+        ("front", "allplots_layermats_mslice_align_at_2"),
+        {"spin_state": "up"},
+        "allplots_layermats_mslice_align_at_2",
+    ),
+    (
         ("front", "sldvfpplots_layermats"),
         {"spin_state": "up"},
         "sldvfpplots_layermats",
@@ -75,9 +101,19 @@ standard_plot_examples = [
     (("front", "vfp_post"), {"spin_state": "up"}, "vfp_post"),
     (("front", "surfacesvfp"), {"spin_state": "up"}, "surfacesvfp"),
     (
+        ("front", "surfacesvfp_align_at_3"),
+        {"spin_state": "up"},
+        "surfacesvfp_align_at_3",
+    ),
+    (
         ("back_ssup", "allplots_layermats_mslice_tsld"),
         {"orientation": "back", "spin_state": "up"},
         "allplots_layermats_mslice_tsld",
+    ),
+    (
+        ("back_ssup", "allplots_layermats_mslice_align_at_2"),
+        {"orientation": "back", "spin_state": "up"},
+        "allplots_layermats_mslice_align_at_2",
     ),
     (
         ("back_ssup", "sldvfpplots_layermats"),
@@ -95,9 +131,19 @@ standard_plot_examples = [
         "surfacesvfp",
     ),
     (
+        ("back_ssup", "surfacesvfp_align_at_3"),
+        {"orientation": "back", "spin_state": "up"},
+        "surfacesvfp_align_at_3",
+    ),
+    (
         ("front_mdz_01_ss_down", "allplots_layermats_mslice_tsld"),
         {"max_delta_z": 0.1, "spin_state": "down"},
         "allplots_layermats_mslice_tsld",
+    ),
+    (
+        ("front_mdz_01_ss_down", "allplots_layermats_mslice_align_at_2"),
+        {"max_delta_z": 0.1, "spin_state": "down"},
+        "allplots_layermats_mslice_align_at_2",
     ),
     (
         ("front_mdz_01_ss_down", "sldvfpplots_layermats"),
@@ -113,6 +159,11 @@ standard_plot_examples = [
         ("front_mdz_01_ss_down", "surfacesvfp"),
         {"max_delta_z": 0.1, "spin_state": "down"},
         "surfacesvfp",
+    ),
+    (
+        ("front_mdz_01_ss_down", "surfacesvfp_align_at_3"),
+        {"max_delta_z": 0.1, "spin_state": "down"},
+        "surfacesvfp_align_at_3",
     ),
 ]
 
@@ -136,7 +187,6 @@ def test_plot(
         islds=islds,
         **vfp_kwargs,
     )
-
     fig, _ = vfp.plot(**plot_kwargs[plot_kwarg_keys])
     fig_arr = fig_to_arr(fig)
     expected_result = file_content
