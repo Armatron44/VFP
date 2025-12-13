@@ -71,7 +71,7 @@ class PlotType(StrEnum):
             By default, False.
         """
         # get slds to plot (1d z, 2d all_slds (z points, sld type))
-        z, all_slds = vfp.z_and_sld(align_at_layer=align_at)
+        z, all_slds = vfp.z_and_sld(align_at_interface=align_at)
         # get lims that match vfp and surfaces.
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
         # recreate z and all_slds with microslabs.
@@ -204,7 +204,7 @@ class PlotType(StrEnum):
         )
 
         vfs = vfp.vfs_for_display()[0]
-        z = vfp.z_and_sld(align_at_layer=align_at)[0]
+        z = vfp.z_and_sld(align_at_interface=align_at)[0]
         xlower_lim, xupper_lim = self._calc_xlims(z)
 
         if layer_materials is not None:
@@ -334,7 +334,7 @@ class PlotType(StrEnum):
             fill_colours = fill_colours[::-1]
             fill_zorder = fill_zorder[::-1]
         # attempt to recreate margin that would be found in vfp plot.
-        z = vfp.z_and_sld(align_at_layer=align_at)[0]
+        z = vfp.z_and_sld(align_at_interface=align_at)[0]
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
         # plot surfaces.
         for i, j in enumerate(surfaces):
@@ -582,7 +582,7 @@ def surfaces_for_display(
     vfp: BaseVFP,
     points: int,
     rng: np.random.Generator,
-    align_at_layer: int = 0,
+    align_at_interface: int = 0,
 ) -> np.ndarray:
     """
     Produces 2D array of RVs to describe each interface.
@@ -598,7 +598,7 @@ def surfaces_for_display(
         Number of points to simulate across the surfaces.
     rng : np.random.Generator
         An initialised pseudo random number generator.
-    align_at_layer : int
+    align_at_interface : int
         Specifies which interface defines z = 0.
 
     Returns
@@ -607,7 +607,7 @@ def surfaces_for_display(
         2d array of shape = (Nlayers - 1, points)
     """
     interf_loc = np.cumsum(vfp.tup_thicks)
-    offset = interf_loc[align_at_layer]
+    offset = interf_loc[align_at_interface]
     interf_loc = (
         -(interf_loc - offset)
         if vfp.vfp_attrs.orientation == "back"

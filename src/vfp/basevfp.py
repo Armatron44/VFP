@@ -330,7 +330,7 @@ class BaseVFP(ABC):
         return p_vfp, demag_vfp
 
     def z_and_sld(
-        self, reduced: bool = True, align_at_layer: int = 0
+        self, reduced: bool = True, align_at_interface: int = 0
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Get z and sld values from vfp for plotting.
@@ -342,7 +342,7 @@ class BaseVFP(ABC):
         ----------
         reduced : bool
             If False/True, will return full/reduced zs and slds.
-        align_at_layer : int, optional
+        align_at_interface : int, optional
             Which interface index to set z = 0. Defaults to
             first interface.
 
@@ -355,7 +355,7 @@ class BaseVFP(ABC):
             Either reduced or full.
         """
         self.process_model()  # update the model.
-        offset = np.cumsum(self.tup_thicks)[align_at_layer]
+        offset = np.cumsum(self.tup_thicks)[align_at_interface]
         z = np.array(self.zeds) - offset
         z = -z if self.vfp_attrs.orientation == "back" else z
         slds = self.get_slds(reduced=reduced)
