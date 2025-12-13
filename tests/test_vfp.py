@@ -345,7 +345,7 @@ orientation_expected_result_front_nospin = np.vstack(
 
 orientation_expected_result_back_nospin = np.vstack(
     (
-        -(z - (0 + 20)),  # orientation = back - flip z.
+        -z,  # orientation = back - flip z
         np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
         np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
         np.sum(
@@ -370,7 +370,7 @@ orientation_expected_result_front = np.vstack(
 
 orientation_expected_result_back = np.vstack(
     (
-        -(z - (0 + 20)),  # orientation = back - flip z.
+        -z,  # orientation = back - flip z.
         np.sum((fronting_sld, first_lay_sld, backing_sld), axis=0),
         np.sum((fronting_isld, first_lay_isld, backing_isld), axis=0),
         np.sum((fronting_msld, first_lay_msld, backing_msld), axis=0),
