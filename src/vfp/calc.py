@@ -111,7 +111,7 @@ def calc_dzs(
 
 @lru_cache(maxsize=2)
 def calc_zeds(
-    rough: tuple[float], thick: tuple[float], mxdz: float
+    rough: tuple[float, ...], thick: tuple[float, ...], mxdz: float
 ) -> np.ndarray:
     """
     Calculates the z values over which the interface is defined.
@@ -121,10 +121,10 @@ def calc_zeds(
 
     Parameters
     ----------
-    rough : tuple[float]
+    rough : tuple[float, ...]
         Roughnesses of layers in model.
         Used in calculation of the start and end of zeds.
-    thick : tuple[float]
+    thick : tuple[float, ...]
         Thicknesses of layers in model.
         Used to calculate the end of the zeds.
     mxdz : float
@@ -200,23 +200,23 @@ def one_minus_cdf(
 
 @lru_cache(maxsize=2)
 def calc_vfp(
-    rough: tuple[float],
-    thick: tuple[float],
-    zeds: tuple[float],
-    conformal: tuple[int],
+    rough: tuple[float, ...],
+    thick: tuple[float, ...],
+    zeds: tuple[float, ...],
+    conformal: tuple[int, ...],
 ) -> np.ndarray:
     """
     Returns the volume fraction profile for each layer.
 
     Parameters
     ----------
-    thick : tuple[float]
+    thick : tuple[float, ...]
         thicknesses values of the layers.
-    rough : tuple[float]
+    rough : tuple[float, ...]
         roughnesses values of the layers.
-    zeds : tuple[float]
+    zeds : tuple[float, ...]
         z values across VFP.
-    conformal : tuple[int]
+    conformal : tuple[int, ...]
         sequence of 0 and 1s.
         1 indicates conformal interface to everything before,
         0 indicates non-conformal interface.
@@ -299,11 +299,11 @@ def calc_vfp(
 
 @lru_cache(maxsize=2)
 def init_demag(
-    locs: tuple[float],
-    widths: tuple[float],
-    mslds: tuple[float],
-    zeds: tuple[float],
-    vfp: tuple[tuple[float]],
+    locs: tuple[float, ...],
+    widths: tuple[float, ...],
+    mslds: tuple[float, ...],
+    zeds: tuple[float, ...],
+    vfp: tuple[tuple[float, ...]],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the product of the VFP and the demagnetisation factor.
@@ -322,15 +322,15 @@ def init_demag(
 
     Parameters
     ----------
-    locs : tuple[float]
+    locs : tuple[float, ...]
         values to describe demagnetisation peak(s) locations.
-    widths : tuple[float]
+    widths : tuple[float, ...]
         values to describe demagnetisation peaks(s) widths.
-    mslds : tuple[float]
+    mslds : tuple[float, ...]
         tuple of magnetic SLD values of the layers.
-    zeds : tuple[float]
+    zeds : tuple[float, ...]
         tuple of z values across VFP.
-    vfp : tuple[tuple[float]]
+    vfp : tuple[tuple[float, ...]]
         Nested tuple (2d) containing VFP of each layer.
 
     Returns
@@ -469,10 +469,10 @@ def get_demag(
 
 @lru_cache(maxsize=2)
 def integrate_vfp(
-    zeds: tuple[float],
-    indexs: tuple[int],
-    red_vfps: tuple[float],
-    layer_indices: tuple[int],
+    zeds: tuple[float, ...],
+    indexs: tuple[int, ...],
+    red_vfps: tuple[float, ...],
+    layer_indices: tuple[int, ...],
 ) -> list[float]:
     """
     Calculates integrals of specific VFP layers.
@@ -482,16 +482,16 @@ def integrate_vfp(
 
     Parameters
     ----------
-    zeds : tuple[float]
+    zeds : tuple[float, ...]
         tuple of z values across VFP.
-    indexs : tuple[int]
+    indexs : tuple[int, ...]
         indices of nodes in the VFP that are approximately equal to a
         neighbouring node as defined in `self.init_demag`. These indices are
         used to calculate the thickness of each microslice across an uneven z
         space after reduction.
-    red_vfps : tuple[float]
+    red_vfps : tuple[float, ...]
         Nested tuple (2d) containing VFP of each layer.
-    layer_indices : tuple[ind]
+    layer_indices : tuple[int, ...]
         Indices of layers of which to calculate the integral.
 
     Returns

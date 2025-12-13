@@ -178,7 +178,9 @@ class PlotType(StrEnum):
             fronting to backing.
         """
         # get default labels
-        def_labels = [f"Layer {i}" for i in range(len(vfp.tup_thicks) + 1)]
+        def_labels = [
+            f"Layer {i}" for i in range(len(vfp.vfp_attrs.tup_thicks) + 1)
+        ]
         def_labels[0], def_labels[-1] = "Fronting", "Backing"
 
         if labels is None:
@@ -229,10 +231,10 @@ class PlotType(StrEnum):
                         lay_vfp,
                         alpha=0.05,
                         color=colours[  # reverse colour order.
-                            ((2 * len(vfp.tup_thicks) + 1) - 2 * i)
+                            ((2 * len(vfp.vfp_attrs.tup_thicks) + 1) - 2 * i)
                             % len(colours)
                         ],
-                        zorder=len(vfp.tup_thicks) - i,
+                        zorder=len(vfp.vfp_attrs.tup_thicks) - i,
                     )
         else:
             if vfp.vfp_attrs.orientation == "front":
@@ -241,7 +243,7 @@ class PlotType(StrEnum):
                         z,
                         lay_vfp,
                         label=labels[i],
-                        zorder=len(vfp.tup_thicks) + i,
+                        zorder=len(vfp.vfp_attrs.tup_thicks) + i,
                     )
 
             elif vfp.vfp_attrs.orientation == "back":
@@ -251,9 +253,10 @@ class PlotType(StrEnum):
                         lay_vfp,
                         label=labels[i],
                         color=colours[  # reverse colour order.
-                            (2 * len(vfp.tup_thicks) - 2 * i) % len(colours)
+                            (2 * len(vfp.vfp_attrs.tup_thicks) - 2 * i)
+                            % len(colours)
                         ],
-                        zorder=2 * len(vfp.tup_thicks) - i,
+                        zorder=2 * len(vfp.vfp_attrs.tup_thicks) - i,
                     )
 
             if total_vf:
@@ -318,7 +321,7 @@ class PlotType(StrEnum):
             vfp, surface_points, surface_rng, align_at
         )
 
-        n_interf = len(vfp.tup_thicks)
+        n_interf = len(vfp.vfp_attrs.tup_thicks)
         # get default colours if non specified.
         colours = (
             matplotlib.colormaps["tab20"].colors
@@ -362,7 +365,7 @@ class PlotType(StrEnum):
                     zorder=fill_zorder[i],
                 )
 
-            elif i < len(vfp.tup_thicks):
+            elif i < len(vfp.vfp_attrs.tup_thicks):
                 ax.fill_betweenx(
                     y=range(0, surface_points),
                     x1=surfaces[i - 1],
@@ -373,7 +376,7 @@ class PlotType(StrEnum):
                     zorder=fill_zorder[i],
                 )
 
-            elif i == len(vfp.tup_thicks):
+            elif i == len(vfp.vfp_attrs.tup_thicks):
                 ax.fill_betweenx(
                     y=range(0, surface_points),
                     x1=surfaces[i - 1],
@@ -397,7 +400,7 @@ class PlotType(StrEnum):
 
         for border in ["top", "bottom", "left", "right"]:
             ax.spines[border].set_zorder(
-                (len(vfp.tup_thicks) + 1) * 3
+                (len(vfp.vfp_attrs.tup_thicks) + 1) * 3
             )  # borders will be higher than surfaces and fills.
 
     def plot(self, *args, **kwargs) -> None:
@@ -606,14 +609,14 @@ def surfaces_for_display(
     np.array
         2d array of shape = (Nlayers - 1, points)
     """
-    interf_loc = np.cumsum(vfp.tup_thicks)
+    interf_loc = np.cumsum(vfp.vfp_attrs.tup_thicks)
     offset = interf_loc[align_at_interface]
     interf_loc = (
         -(interf_loc - offset)
         if vfp.vfp_attrs.orientation == "back"
         else interf_loc - offset
     )
-    roughs = vfp.tup_roughs
+    roughs = vfp.vfp_attrs.tup_roughs
     interf_arr = np.ones(shape=(interf_loc.size, points))
     num_conform = np.sum(vfp.vfp_attrs.conformal)
     # return the non-conformal interfaces.
@@ -629,7 +632,7 @@ def surfaces_for_display(
     if num_conform > 0:
         for i in idx_where_conformal:
             interf_arr[i] = (
-                np.max(interf_arr[:i].T, axis=1) + vfp.tup_thicks[i]
+                np.max(interf_arr[:i].T, axis=1) + vfp.vfp_attrs.tup_thicks[i]
             )
     return interf_arr
 

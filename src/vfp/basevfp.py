@@ -51,6 +51,29 @@ class VFPAttributes:
     conformal: np.ndarray
     name: str
 
+    @property
+    def tup_thicks(self) -> tuple[float, ...]:
+        return tuple(self.thicknesses.astype(float))
+
+    @property
+    def tup_mslds(self) -> tuple[float, ...]:
+        return tuple(self.mslds.astype(float))
+
+    @property
+    def tup_demag_locs(self) -> tuple[float, ...]:
+        return tuple(self.demaglocs.astype(float))
+
+    @property
+    def tup_demag_widths(self) -> tuple[float, ...]:
+        return tuple(self.demagwidths.astype(float))
+
+    @property
+    def tup_roughs(self) -> tuple[float, ...]:
+        rs = tuple(
+            float(par) if par is not None else 1 for par in self.roughnesses
+        )
+        return rs
+
 
 class BaseVFP(ABC):
     """
@@ -110,12 +133,12 @@ class BaseVFP(ABC):
             microslice thicknesses.
             Shape = zeds.size - self.indices
         """
-        # update tuple variants of some vfp attrs.
-        self._tuple_pars()
 
         # calc z spectrum
         zeds = calc_zeds(
-            self.tup_roughs, self.tup_thicks, self.vfp_attrs.max_delta_z
+            self.vfp_attrs.tup_roughs,
+            self.vfp_attrs.tup_thicks,
+            self.vfp_attrs.max_delta_z,
         )
 
         zstart, zend, points = zeds[0], zeds[-1], zeds.size
@@ -193,17 +216,17 @@ class BaseVFP(ABC):
 
         # calculate volume fraction profiles of layers over interface.
         self.vfp = calc_vfp(
-            self.tup_roughs,
-            self.tup_thicks,
+            self.vfp_attrs.tup_roughs,
+            self.vfp_attrs.tup_thicks,
             self.zeds,
             tuple(self.vfp_attrs.conformal),
         )
 
         # calculate reduced volume fraction and magnetic profiles.
         red_vfp, red_demag_vfp, idx, demag_arr = init_demag(
-            self.tup_demag_locs,
-            self.tup_demag_widths,
-            self.tup_mslds,
+            self.vfp_attrs.tup_demag_locs,
+            self.vfp_attrs.tup_demag_widths,
+            self.vfp_attrs.tup_mslds,
             self.zeds,
             self._arrtotuple(self.vfp),
         )
@@ -309,9 +332,9 @@ class BaseVFP(ABC):
         self.process_model()
 
         red_vfp, red_demag_vfp, _, demag_arr = init_demag(
-            self.tup_demag_locs,
-            self.tup_demag_widths,
-            self.tup_mslds,
+            self.vfp_attrs.tup_demag_locs,
+            self.vfp_attrs.tup_demag_widths,
+            self.vfp_attrs.tup_mslds,
             self.zeds,
             self._arrtotuple(self.vfp),
         )
@@ -355,7 +378,7 @@ class BaseVFP(ABC):
             Either reduced or full.
         """
         self.process_model()  # update the model.
-        offset = np.cumsum(self.tup_thicks)[align_at_interface]
+        offset = np.cumsum(self.vfp_attrs.tup_thicks)[align_at_interface]
         z = np.array(self.zeds) - offset
         z = -z if self.vfp_attrs.orientation == "back" else z
         slds = self.get_slds(reduced=reduced)
@@ -403,7 +426,8 @@ class BaseVFP(ABC):
         elif self.vfp_attrs.orientation == "back":
             zend_of_vfprofile_nr = (
                 np.max(
-                    np.sum(self.tup_thicks) + 4 * np.array(self.tup_roughs)
+                    np.sum(self.vfp_attrs.tup_thicks)
+                    + 4 * np.array(self.vfp_attrs.tup_roughs)
                 )
                 + 5
             )
@@ -417,7 +441,7 @@ class BaseVFP(ABC):
             # backing roughness part. Then 5 + last microslice thickness
             # covers the -5 + last slab location part.
             zend_front = self.dz[-1] + zend_of_vfprofile
-            sldprof_offset = -(zend_front - np.sum(self.tup_thicks))
+            sldprof_offset = -(zend_front - np.sum(self.vfp_attrs.tup_thicks))
 
         return sldprof_offset
 
@@ -509,23 +533,6 @@ class BaseVFP(ABC):
         )
 
         return fig, ax
-
-    def _tuple_pars(self) -> None:
-        """
-        Converts attributes to tuples for the purposes of hashing.
-        """
-        self.tup_thicks = tuple(self.vfp_attrs.thicknesses.astype(float))
-        self.tup_demag_locs = tuple(self.vfp_attrs.demaglocs.astype(float))
-        self.tup_demag_widths = tuple(
-            self.vfp_attrs.demagwidths.astype(float)
-        )
-        self.tup_mslds = tuple(self.vfp_attrs.mslds.astype(float))
-
-        # we need to put a hashable dummy value into the roughnesses.
-        self.tup_roughs = tuple(
-            float(par) if par is not None else 1
-            for par in self.vfp_attrs.roughnesses
-        )
 
     def _arrtotuple(
         self, arr: np.ndarray
