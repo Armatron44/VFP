@@ -156,9 +156,6 @@ class VFP(BaseVFP):
             arr_attrs, other_attrs, name=self.name
         )
 
-        # get all attrs of parent.
-        super().__init__()
-
     @property
     def vfp_attrs(self) -> VFPAttributes:
         """
@@ -334,9 +331,6 @@ if HAS_REFNX:
 
             # Init Component and get attrs in self.
             Component.__init__(self)
-
-            # init BaseVFP and get attrs in self.
-            BaseVFP.__init__(self)
 
         @property
         def vfp_attrs(self) -> VFPAttributes:
@@ -768,9 +762,6 @@ if HAS_REFL1D:
 
             # Init Layer and get attrs in self.
             Layer.__init__(self)
-
-            # init BaseVFP and get attrs in self.
-            BaseVFP.__init__(self)
 
             # refl1d needs total thickness of the vfp as attr
             # at the beginning and throughout fitting.

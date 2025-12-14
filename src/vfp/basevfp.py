@@ -13,11 +13,13 @@ from matplotlib.figure import Figure
 
 # this package
 from vfp.calc import (
+    calc_demag_array,
     calc_dzs,
+    calc_indices,
     calc_vfp,
     calc_zeds,
-    init_demag,
     integrate_vfp,
+    reduce_vfp_and_magcomp,
     transform_indices,
 )
 from vfp.plotting import model_plot
@@ -102,10 +104,6 @@ class BaseVFP(ABC):
     `process_model` is the main function.
     """
 
-    def __init__(self) -> None:
-        # create vfp model.
-        self.process_model()
-
     def __repr__(self) -> str:
         """
         Simple string description of the VFP.
@@ -149,18 +147,6 @@ class BaseVFP(ABC):
             thickness of each microslice.
             Each array has shape = zeds.size - self.indices
         """
-        # calc z spectrum
-        zeds = calc_zeds(
-            self.vfp_attrs.tup_roughs,
-            self.vfp_attrs.tup_thicks,
-            self.vfp_attrs.max_delta_z,
-        )
-
-        zstart, zend, points = zeds[0], zeds[-1], zeds.size
-
-        self.zeds = self._arrtotuple(zeds)
-        "z space of interface as tuple for caching."
-
         all_slds = self.get_slds()
         # total the nuclear and magnetic SLDs on given contrast.
         if self.vfp_attrs.spin_state == "none":
@@ -173,13 +159,6 @@ class BaseVFP(ABC):
         # and imaginary
         i_sld = all_slds[1]
 
-        self.dz = calc_dzs(zstart, zend, points, self.indices)
-        "The thickness of each microslab"
-
-        # when orientation = back, slabs will have same thickness as front,
-        # just in reverse order
-        if self.vfp_attrs.orientation == "back":
-            self.dz = self.dz[::-1]
         # get the average between each coherent and imaginary sld value.
         average_slds, average_islds = (
             0.5 * np.diff(slds) + slds[:-1] for slds in [coh_sld, i_sld]
@@ -222,34 +201,14 @@ class BaseVFP(ABC):
             Three sld contributions across three rows as function of
             `self.zeds`. Coherent sld, imaginary sld, magnetic sld.
         """
-
-        # calculate volume fraction profiles of layers over interface.
-        self.vfp = calc_vfp(
-            self.vfp_attrs.tup_roughs,
-            self.vfp_attrs.tup_thicks,
-            self.zeds,
-            tuple(self.vfp_attrs.conformal),
-        )
-
-        # calculate reduced volume fraction and magnetic profiles.
-        red_vfp, red_demag_vfp, idx, demag_arr = init_demag(
-            self.vfp_attrs.tup_demag_locs,
-            self.vfp_attrs.tup_demag_widths,
-            self.vfp_attrs.tup_mslds,
-            self.zeds,
-            self._arrtotuple(self.vfp),
-        )
-
-        self.indices = self._arrtotuple(idx)
-        """Tuple version of arr where volume fraction values are
-           approximately invariant."""
-
-        # calculate the SLD values across reduced or full vfp:
+        vfp = np.asarray(self.vfp)
+        demag_arr = np.asarray(self.demag_arr)
+        mag_comp = vfp * demag_arr
         if reduced:
-            all_slds = self.calc_slds(red_vfp, red_demag_vfp)
-        else:
-            all_slds = self.calc_slds(self.vfp, self.vfp * demag_arr)
-
+            vfp, mag_comp = reduce_vfp_and_magcomp(
+                vfp, mag_comp, np.asarray(self.indices)
+            )
+        all_slds = self.calc_slds(vfp, mag_comp)
         return all_slds
 
     def calc_slds(
@@ -288,7 +247,7 @@ class BaseVFP(ABC):
             # user defines a class with a callable, which returns a list of
             # indices for modifying SLD values at those idxs.
             layer_idxs, slds = self.vfp_attrs.sld_constraint(integrals)
-            for layer_idx, sld in zip(layer_idxs, slds, strict=False):
+            for layer_idx, sld in zip(layer_idxs, slds, strict=True):
                 self.vfp_attrs.nslds[layer_idx] = sld  # update
 
         # get float values from the Parameters in the attrs arrays.
@@ -334,31 +293,22 @@ class BaseVFP(ABC):
         -------
         tuple[np.ndarray, np.ndarray]
             First array is vfp (reduced or full). Second array is magnetic vfp
-            after demag_f applied (reduced or full).
+            (vfp * demag_arr) applied (reduced or full).
         """
-        # update the model. Captures instances where parameters have changed.
-        self.process_model()
-
-        red_vfp, red_demag_vfp, _, demag_arr = init_demag(
-            self.vfp_attrs.tup_demag_locs,
-            self.vfp_attrs.tup_demag_widths,
-            self.vfp_attrs.tup_mslds,
-            self.zeds,
-            self._arrtotuple(self.vfp),
-        )
+        vfp = np.asarray(self.vfp)
+        demag_arr = np.asarray(self.demag_arr)
+        magcomp = vfp * demag_arr
 
         if reduced:
-            p_vfp = red_vfp
-            demag_vfp = red_demag_vfp
-        else:
-            p_vfp = self.vfp
-            demag_vfp = self.vfp * demag_arr
+            vfp, magcomp = reduce_vfp_and_magcomp(
+                vfp, magcomp, np.asarray(self.indices)
+            )
 
         if self.vfp_attrs.orientation == "back":
-            p_vfp = p_vfp[::-1]  # reverse order.
-            demag_vfp = demag_vfp[::-1]
+            vfp = vfp[::-1]  # reverse order.
+            magcomp = magcomp[::-1]
 
-        return p_vfp, demag_vfp
+        return vfp, magcomp
 
     def z_and_sld(
         self, reduced: bool = True, align_at_interface: int = 0
@@ -385,7 +335,6 @@ class BaseVFP(ABC):
             coherent, imaginary, magnetic across columns.
             Either reduced or full.
         """
-        self.process_model()  # update the model.
         offset = np.cumsum(self.vfp_attrs.tup_thicks)[align_at_interface]
         z = np.array(self.zeds) - offset
         z = -z if self.vfp_attrs.orientation == "back" else z
@@ -421,11 +370,9 @@ class BaseVFP(ABC):
         >>> plt.plot(z+refnx_vfp.sld_offset(), sld)
         >>> plt.show()
         """
-        # update the model. Captures instances where parameters have changed.
-        self.process_model()
 
         if self.vfp_attrs.orientation == "front":
-            sldprof_offset_nr = -5 - (4 * self.tup_roughs[0])
+            sldprof_offset_nr = -5 - (4 * self.vfp_attrs.tup_roughs[0])
             # round down like zstart
             sldprof_offset = np.floor(
                 sldprof_offset_nr * (1 / self.vfp_attrs.max_delta_z)
@@ -505,9 +452,6 @@ class BaseVFP(ABC):
         tuple[Figure, Axes | np.ndarray[Axes]]
             Figure and axes objects.
         """
-        # update the model. Captures instances where parameters have changed.
-        self.process_model()
-
         # run check on unique vals in plots_required
         possible_plots = ["sld", "vfp", "surfaces"]
         if isinstance(plots_required, list):
@@ -544,7 +488,7 @@ class BaseVFP(ABC):
 
     def _arrtotuple(
         self, arr: np.ndarray
-    ) -> tuple[float, ...] | tuple[tuple[float, ...]]:
+    ) -> tuple[float, ...] | tuple[tuple[float, ...], ...]:
         """
         Convert arrays to tuples for caching.
 
@@ -555,7 +499,7 @@ class BaseVFP(ABC):
 
         Returns
         -------
-        tuple[float, ...] | tuple[tuple[float, ...]]
+        tuple[float, ...] | tuple[tuple[float, ...], ...]
             tuple or nested tuple of floats.
         """
         if arr.ndim == 1:
@@ -612,6 +556,59 @@ class BaseVFP(ABC):
             name=name,
         )
         return attrs
+
+    @property
+    def zeds(self) -> tuple[float, ...]:
+        "z space of total interface."
+        zeds = calc_zeds(
+            self.vfp_attrs.tup_roughs,
+            self.vfp_attrs.tup_thicks,
+            self.vfp_attrs.max_delta_z,
+        )
+        return self._arrtotuple(zeds)
+
+    @property
+    def dz(self) -> np.ndarray:
+        """The thickness of each microslab.
+
+        When orientation == back, microslabs will have same thicknesses
+        as orientation == back, just in reverse order.
+        """
+        zds = self.zeds  # avoid calling the property more than once.
+        dzs = calc_dzs(zds[0], zds[-1], len(zds), self.indices)
+        # when orientation = back, slabs will have same thickness as front,
+        # just in reverse order
+        if self.vfp_attrs.orientation == "back":
+            dzs = dzs[::-1]
+        return dzs
+
+    @property
+    def vfp(self) -> tuple[tuple[float, ...], ...]:
+        "Non-reduced layer volume fraction profile."
+        vfp = calc_vfp(
+            self.vfp_attrs.tup_roughs,
+            self.vfp_attrs.tup_thicks,
+            self.zeds,
+            tuple(self.vfp_attrs.conformal),
+        )
+        return self._arrtotuple(vfp)
+
+    @property
+    def demag_arr(self) -> tuple[tuple[float, ...], ...]:
+        "Non-reduced magnetic demagnetisation of each layer."
+        demag_arr = calc_demag_array(
+            self.vfp_attrs.tup_demag_locs,
+            self.vfp_attrs.tup_demag_widths,
+            self.vfp_attrs.tup_mslds,
+            self.zeds,
+        )
+        return self._arrtotuple(demag_arr)
+
+    @property
+    def indices(self) -> tuple[int, ...]:
+        "Indices of where vfp is ~ invariant with next neighbouring point."
+        idx = calc_indices(self.vfp, self.demag_arr)
+        return self._arrtotuple(idx)
 
     @property
     @abstractmethod

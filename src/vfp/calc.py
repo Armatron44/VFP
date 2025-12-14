@@ -297,60 +297,39 @@ def calc_vfp(
     return vfp
 
 
-@lru_cache(maxsize=2)
-def init_demag(
+def calc_demag_array(
     locs: tuple[float, ...],
     widths: tuple[float, ...],
     mslds: tuple[float, ...],
     zeds: tuple[float, ...],
-    vfp: tuple[tuple[float, ...]],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> np.ndarray:
     """
-    Calculates the product of the VFP and the demagnetisation factor.
+    Calculate demagnetisation of each layer.
 
-    Regions in mag_comp and the VFP are then removed if the
-    difference between neighbouring units in `mag_comp` :math:`< 10^{-5}`.
-    These are referred to as the "reduced" VFP and `mag_comp`.
-
-    Where these regions have been deleted, a record is kept in `idxs`
-    for use in `calc_dzs`.
-
-    Returns the following:
-    1 & 2. reduced_vfp and reduced_magcomp - used in the calculation of SLDs.
-    3. idxs - the indices of where points were removed from VFP and mag_comp.
-    4. demag_arr - demagnetisation array, not reduced.
+    Only deviates from unity if a layer has a magnetic layer
+    and a demag loc and width within layer.
 
     Parameters
     ----------
     locs : tuple[float, ...]
-        values to describe demagnetisation peak(s) locations.
+        Demagnetisation locations across interface.
     widths : tuple[float, ...]
-        values to describe demagnetisation peaks(s) widths.
+        Demagnetisation widths across interface.
     mslds : tuple[float, ...]
-        tuple of magnetic SLD values of the layers.
+        magnetic scattering length densities.
     zeds : tuple[float, ...]
-        tuple of z values across VFP.
-    vfp : tuple[tuple[float, ...]]
-        Nested tuple (2d) containing VFP of each layer.
+        Distance over interface.
 
     Returns
     -------
-    np.array
-        Reduced VFPs. (2d) - Shape = (Nlayers, len(z) - len(idxs))
-    np.array
-        Reduced mag_comp. (2d) - Shape = (Nlayers, len(z) - len(idxs))
-    np.array
-        Indices of where vfp is ~ invariant with next neighbouring point.
-    np.array
-        Shape = (Nlayers, len(z))
+    np.ndarray
         Magnetic demagnetisation before multiplication with VFP.
-        Not reduced.
+        Not reduced. Shape = (Nlayers, len(z))
     """
     locs = np.array(locs)
     widths = np.array(widths)
     mslds = np.array(mslds)
     zeds = np.array(zeds)
-    vfp = np.array(vfp)
 
     # init an array for any magnetic deadness.
     demag_arr = np.ones((len(mslds), len(zeds)))
@@ -364,20 +343,73 @@ def init_demag(
         if mslds[i] != 0:
             demag_arr[i] = demag_arr[i] * demag_factor
 
-    # calculate magnetic composition of each layer over interface using VFPs.
+    return demag_arr
+
+
+@lru_cache(maxsize=2)
+def calc_indices(
+    vfp: tuple[tuple[float, ...], ...],
+    demag_arr: tuple[tuple[float, ...], ...],
+) -> np.ndarray:
+    """
+    Get the indices where the mapnetic composition is ~ invariant.
+
+    Magnetic composition (mag_comp) is `vfp` multiplied by `demag_arr`.
+    Regions in mag_comp and the VFP are then flagged if the
+    difference between neighbouring units in mag_comp :math:`< 10^{-5}`.
+    These are referred to as the "reduced" VFP and mag_comp.
+
+    Parameters
+    ----------
+    vfp : tuple[tuple[float, ...], ...]
+        Nested tuple (2d) containing VFP of each layer.
+    demag_arr : tuple[tuple[float, ...], ...]
+        Nested tuple of demagnetisation of each layer.
+
+    Returns
+    -------
+    np.ndarray
+        Indices of where vfp is ~ invariant with next neighbouring point.
+    """
+    vfp = np.asarray(vfp)
+    demag_arr = np.asarray(demag_arr)
+
+    # calculate magnetic composition of each layer.
     mag_comp = vfp * demag_arr
     # find regions of interface where VFPs are approximately invariant.
     difference_arr = (
         np.abs(np.diff(mag_comp, axis=1)) < MICROSLICE_EQUIVALENCE_THRESHOLD
     )
     reduce_diff_arr = np.all(difference_arr, axis=0)
-    (indices_full,) = np.nonzero(reduce_diff_arr)
-    # now remove parts of the vfps and mag_comp where they are ~ invariant.
+    (indices,) = np.nonzero(reduce_diff_arr)
+    return indices
+
+
+def reduce_vfp_and_magcomp(
+    vfp: np.ndarray, mag_comp: np.ndarray, indices: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Removes parts of the vfps and mag_comp where they are ~ invariant.
+
+    Parameters
+    ----------
+    vfp : np.ndarray
+        Volume fraction profile of each layer, row-wise.
+    mag_comp : np.ndarray
+        Magnetic composition profile of each layer.
+    indices : np.ndarray
+        Where the `mag_comp` is approximately invariant with next neighbour.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        Reduced volume fraction profile and reduced magnetic composition.
+    """
     # remove the i+1 values, except the last in a block
-    to_delete_indices = transform_indices(indices_full)
+    to_delete_indices = transform_indices(indices)
     reduced_vfp = np.delete(vfp, to_delete_indices, 1)
     reduced_magcomp = np.delete(mag_comp, to_delete_indices, 1)
-    return reduced_vfp, reduced_magcomp, indices_full, demag_arr
+    return reduced_vfp, reduced_magcomp
 
 
 def transform_indices(indices: tuple[int, ...] | np.ndarray) -> np.ndarray:
@@ -471,7 +503,7 @@ def get_demag(
 def integrate_vfp(
     zeds: tuple[float, ...],
     indexs: tuple[int, ...],
-    red_vfps: tuple[float, ...],
+    red_vfps: tuple[tuple[float, ...], ...],
     layer_indices: tuple[int, ...],
 ) -> list[float]:
     """
