@@ -123,17 +123,12 @@ class BaseVFP(ABC):
 
         Returns
         -------
-        np.array
-            slds of microslices
-            Shape = zeds.size - self.indices
-        np.array
-            islds of microslices
-            Shape = zeds.size - self.indices
-        np.array
-            microslice thicknesses.
-            Shape = zeds.size - self.indices
+        tuple[np.ndarray, np.ndarray, np.ndarray]
+            Tuple of three arrays. In order, the arrays are 1)
+            coherent (nsld +/- msld) microslices, 2) isld microslices, 3)
+            thickness of each microslice.
+            Each array has shape = zeds.size - self.indices
         """
-
         # calc z spectrum
         zeds = calc_zeds(
             self.vfp_attrs.tup_roughs,
@@ -179,17 +174,11 @@ class BaseVFP(ABC):
             # fill all but last with average SLDs.
             return_slds = return_slds * average_slds
             return_islds = return_islds * average_islds
-            # now set the final sld value to those from the micro arrays.
-            # return_slds[-1] = coh_sld[-1]
-            # return_islds[-1] = i_sld[-1]
 
         elif self.vfp_attrs.orientation == "back":
             # do the same but backwards for back orientations.
             return_slds = return_slds * average_slds[::-1]
             return_islds = return_islds * average_islds[::-1]
-            # now set the final sld value to those from the micro arrays.
-            # return_slds[0] = coh_sld[-1]
-            # return_islds[0] = i_sld[-1]
 
         return return_slds, return_islds, self.dz
 
@@ -323,10 +312,9 @@ class BaseVFP(ABC):
 
         Returns
         -------
-        np.array
-            vfp (reduced or full).
-        np.array
-            magnetic vfp after demag_f applied (reduced or full).
+        tuple[np.ndarray, np.ndarray]
+            First array is vfp (reduced or full). Second array is magnetic vfp
+            after demag_f applied (reduced or full).
         """
         # update the model. Captures instances where parameters have changed.
         self.process_model()
