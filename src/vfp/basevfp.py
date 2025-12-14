@@ -33,8 +33,9 @@ from vfp.vfp_typing import (
 @dataclass
 class VFPAttributes:
     """
-    Holds reference to the concrete VFP classes.
-    The parameters held here can be updated by fitters and samplers.
+    Internal structure to hold parameters given to `vfp`s on input.
+    Used for internal vfp calculations, and not intended to be set
+    by user.
     """
 
     nslds: np.ndarray
@@ -53,22 +54,41 @@ class VFPAttributes:
 
     @property
     def tup_thicks(self) -> tuple[float, ...]:
+        """
+        Tuple variant of `VFPAttributes.thicknesses` for caching.
+        """
         return tuple(self.thicknesses.astype(float))
 
     @property
     def tup_mslds(self) -> tuple[float, ...]:
+        """
+        Tuple variant of `VFPAttributes.mslds` for caching.
+        """
         return tuple(self.mslds.astype(float))
 
     @property
     def tup_demag_locs(self) -> tuple[float, ...]:
+        """
+        Tuple variant of `VFPAttributes.demaglocs` for caching.
+        """
         return tuple(self.demaglocs.astype(float))
 
     @property
     def tup_demag_widths(self) -> tuple[float, ...]:
+        """
+        Tuple variant of `VFPAttributes.demagwidths` for caching.
+        """
         return tuple(self.demagwidths.astype(float))
 
     @property
     def tup_roughs(self) -> tuple[float, ...]:
+        """
+        Tuple variant of `VFPAttributes.roughnesses` for caching.
+
+        If a value in roughnesses is None, we set it to a dummy value of 1.
+        This value is completely ignored during the vfp calculations, but
+        is required for consistent array sizes.
+        """
         rs = tuple(
             float(par) if par is not None else 1 for par in self.roughnesses
         )
