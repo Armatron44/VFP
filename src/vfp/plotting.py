@@ -35,7 +35,7 @@ class PlotType(StrEnum):
         self,
         ax: Axes,
         vfp: BaseVFP,
-        align_at: int,
+        align_at_interface: int,
         posterior: bool,
         get_axtwinx: Callable[[Axes], Axes],
         *,
@@ -51,7 +51,7 @@ class PlotType(StrEnum):
             Which axes to plot vfp profile on.
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
-        align_at : int
+        align_at_interface : int
             Specifies which interface defines z = 0.
         posterior : bool
             Flag to indicate if plotting posterior samples when calling
@@ -71,7 +71,7 @@ class PlotType(StrEnum):
             By default, False.
         """
         # get slds to plot (1d z, 2d all_slds (z points, sld type))
-        z, all_slds = vfp.z_and_sld(align_at_interface=align_at)
+        z, all_slds = vfp.z_and_sld(align_at_interface=align_at_interface)
         # get lims that match vfp and surfaces.
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
         # recreate z and all_slds with microslabs.
@@ -127,7 +127,7 @@ class PlotType(StrEnum):
         self,
         ax: Axes,
         vfp: BaseVFP,
-        align_at: int,
+        align_at_interface: int,
         posterior: bool,
         *,
         layer_materials: dict[int, LayerMaterialFraction] | None = None,
@@ -151,7 +151,7 @@ class PlotType(StrEnum):
             Which axes to plot vfp profile on.
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
-        align_at : int
+        align_at_interface : int
             Specifies which interface defines z = 0.
         posterior : bool
             Flag to indicate if plotting posterior samples.
@@ -204,7 +204,7 @@ class PlotType(StrEnum):
         )
 
         vfs = vfp.vfs_for_display()[0]
-        z = vfp.z_and_sld(align_at_interface=align_at)[0]
+        z = vfp.z_and_sld(align_at_interface=align_at_interface)[0]
         xlower_lim, xupper_lim = self._calc_xlims(z)
 
         if layer_materials is not None:
@@ -272,7 +272,7 @@ class PlotType(StrEnum):
         self,
         ax: Axes,
         vfp: BaseVFP,
-        align_at: int,
+        align_at_interface: int,
         *,
         surface_points: int = 50,
         surface_rng: np.random.Generator | None = None,
@@ -287,7 +287,7 @@ class PlotType(StrEnum):
             Which axes to plot vfp profile on.
         vfp : BaseVFP
             Concrete child instance of BaseVFP to plot.
-        align_at : int
+        align_at_interface : int
             Specifies which interface defines z = 0.
 
         Kwargs
@@ -315,7 +315,7 @@ class PlotType(StrEnum):
         # add on two additional points to create fill effect on surfaces
         surface_points += 2
         surfaces = surfaces_for_display(
-            vfp, surface_points, surface_rng, align_at
+            vfp, surface_points, surface_rng, align_at_interface
         )
 
         n_interf = len(vfp.tup_thicks)
@@ -334,7 +334,7 @@ class PlotType(StrEnum):
             fill_colours = fill_colours[::-1]
             fill_zorder = fill_zorder[::-1]
         # attempt to recreate margin that would be found in vfp plot.
-        z = vfp.z_and_sld(align_at_interface=align_at)[0]
+        z = vfp.z_and_sld(align_at_interface=align_at_interface)[0]
         def_xlower_lim, def_xupper_lim = self._calc_xlims(z)
         # plot surfaces.
         for i, j in enumerate(surfaces):
@@ -606,6 +606,8 @@ def surfaces_for_display(
     np.array
         2d array of shape = (Nlayers - 1, points)
     """
+    if np.abs(align_at_interface) >= len(vfp.tup_thicks):
+        raise ValueError("align_at_interface must be an index of the layers.")
     interf_loc = np.cumsum(vfp.tup_thicks)
     offset = interf_loc[align_at_interface]
     interf_loc = (
@@ -638,7 +640,7 @@ def model_plot(  # noqa: PLR0913
     vfp: BaseVFP,
     plots_required: list[Literal["sld", "vfp", "surfaces"]],
     posterior_samples: dict[str, np.ndarray] | None,
-    align_at: int | None,
+    align_at_interface: int,
     fig: Figure | None,
     sld_plot_kwargs: SldPlotKwargType | None,
     vfp_plot_kwargs: VfpPlotKwargType | None,
@@ -662,9 +664,8 @@ def model_plot(  # noqa: PLR0913
         The keys should match the names of varying parameters in the vfp.
         Array values should be 1D of parameter values.
         If None, no posterior samples will be plotted.
-    align_at : int | None,
-        Specifies which interface defines z = 0. If None,
-        defaults to first interface.
+    align_at_interface : int
+        Specifies which interface defines z = 0.
     fig : Figure | None
         If supplied, plots will be plotted on `fig`. If None, a new Figure
         will be created.
@@ -680,13 +681,13 @@ def model_plot(  # noqa: PLR0913
     tuple[Figure, Axes | np.ndarray[Axes]]
         Figure and axes objects.
     """
+    if np.abs(align_at_interface) >= len(vfp.tup_thicks):
+        raise ValueError("align_at_interface must be an index of the layers.")
+
     # get axes index for required plots.
     axes_enum = AxesIndex.from_requested_plots_list(
         requested_plots=plots_required
     )
-
-    if align_at is None:
-        align_at = 0
 
     # get original vfp varying_parameter values
     original_ps = copy.deepcopy(vfp.varying_parameters)
@@ -726,8 +727,8 @@ def model_plot(  # noqa: PLR0913
             raise ValueError("Posterior samples are of different lengths.")
 
         plot_fn_args_map_posterior = {
-            PlotType.SLD: (vfp, align_at, True, get_sld_axtwinx_fn),
-            PlotType.VFP: (vfp, align_at, True),
+            PlotType.SLD: (vfp, align_at_interface, True, get_sld_axtwinx_fn),
+            PlotType.VFP: (vfp, align_at_interface, True),
         }
 
         length_of_samples = next(iter(p_samps_lens))
@@ -748,9 +749,9 @@ def model_plot(  # noqa: PLR0913
     if vfp.varying_parameters is not None:
         vfp.varying_parameters = original_ps  # set to original values.
     plot_fn_args_map = {
-        PlotType.SLD: (vfp, align_at, False, get_sld_axtwinx_fn),
-        PlotType.VFP: (vfp, align_at, False),
-        PlotType.SURFACES: (vfp, align_at),
+        PlotType.SLD: (vfp, align_at_interface, False, get_sld_axtwinx_fn),
+        PlotType.VFP: (vfp, align_at_interface, False),
+        PlotType.SURFACES: (vfp, align_at_interface),
     }
 
     for axis in axes_enum:
