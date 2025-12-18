@@ -512,7 +512,7 @@ class BaseVFP(ABC):
             vfp=self,
             plots_required=plots_required,
             posterior_samples=posterior_samples,
-            align_at=align_at_interface,
+            align_at_interface=align_at_interface,
             fig=fig,
             sld_plot_kwargs=sld_plot_kwargs,
             vfp_plot_kwargs=vfp_plot_kwargs,
