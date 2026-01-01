@@ -6,9 +6,8 @@ from refnx.reflect import SLD
 rng = np.random.default_rng(seed=41)
 surface_rng = np.random.default_rng(seed=42)
 
+
 # fixutres for plotting
-
-
 @pytest.fixture
 def sld_setup():
     fronting_sld = SLD(2, name="fronting_sld")
