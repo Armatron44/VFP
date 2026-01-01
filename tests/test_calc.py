@@ -1,304 +1,589 @@
 import numpy as np
+import pytest
 import scipy
 from numpy.testing import assert_allclose
 
 from vfp.calc import (
-    MICROSLICE_EQUIVALENCE_THRESHOLD,
+    calc_demag_array,
     calc_dzs,
+    calc_indices,
     calc_vfp,
     calc_zeds,
     consecutive,
     get_demag,
-    init_demag,
+    heaviside_step,
     integrate_vfp,
     one_minus_cdf,
+    reduce_vfp_and_magcomp,
+    transform_indices,
 )
 
 
-def init_standard_sample():
-    # set up some quick standard test parameters.
-    # 4 layers + use some non-integer values.
-    lot = [0, 19.7, 50, 30]
-    lor = [3.1, 5, 7.3, 6]
-    nslds = [0, 6, 4, 3.47, 2.07]
-    mslds = [0, 0, 3, 0, 0]
-    locs = [1, 25]
-    widths = [1, 5]
-    conformal = [0, 0, 0, 0]
-
-    dict_res = {
-        "thicks": lot,
-        "roughs": lor,
-        "nslds": nslds,
-        "mslds": mslds,
-        "locs": locs,
-        "widths": widths,
-        "conformal": conformal,
-    }
-
-    return dict_res
-
-
-def test_consecutive():
-    arr_test = np.array([1, 2, 3, 5, 6, 7])
-    consec_list = consecutive(arr_test)
-    expected_output = [np.array([1, 2, 3]), np.array([5, 6, 7])]
-    assert_allclose(consec_list, expected_output)
+@pytest.mark.parametrize(
+    "array, expected_result",
+    [
+        pytest.param(
+            np.array([1, 2, 3, 5, 6, 7]),
+            [np.array([1, 2, 3]), np.array([5, 6, 7])],
+            id="First consecutive test.",
+        ),
+        pytest.param(
+            np.array([100, 101, 105, 106, 200, 201]),
+            [
+                np.array([100, 101]),
+                np.array([105, 106]),
+                np.array([200, 201]),
+            ],
+            id="Second consecutive test.",
+        ),
+    ],
+)
+def test_consecutive(array, expected_result):
+    consec_list = consecutive(array)
+    assert_allclose(consec_list, expected_result)
 
 
-def test_calc_dzs():
+calc_dz_eo_first = np.ones(303 - 7) * 0.5
+# 5 * 0.5 = 2.5
+calc_dz_eo_first[10] = 2.5
+# 4 * 0.5 = 2
+calc_dz_eo_first[46] = 2
+calc_dz_eo_second = np.ones(20) * 0.5
+
+
+@pytest.mark.parametrize(
+    "zstart, zend, points, idxs, expected_result",
+    [
+        pytest.param(
+            -17.5,
+            134,
+            304,
+            (10, 11, 12, 13, 14, 50, 51, 52, 53),
+            calc_dz_eo_first,
+            id="First calc_dz test, two batches of consec idxs.",
+        ),
+        pytest.param(
+            0,
+            10,
+            21,
+            (),
+            calc_dz_eo_second,
+            id="Second calc_dz test, no idxs.",
+        ),
+    ],
+)
+def test_calc_dzs(
+    zstart: float,
+    zend: float,
+    points: int,
+    idxs: tuple[int, ...],
+    expected_result: np.ndarray,
+) -> None:
     dz = calc_dzs(
-        zstart=-17.5,
-        zend=134,
-        points=304,
-        idxs=(10, 11, 12, 13, 14, 50, 51, 52, 53),
+        zstart=zstart,
+        zend=zend,
+        points=points,
+        idxs=idxs,
     )
-    expected_output = np.ones(303 - 7) * 0.5
-    # 5 * 0.5 = 2.5
-    expected_output[10] = 2.5
-    # 4 * 0.5 = 2
-    expected_output[46] = 2
-    assert_allclose(dz, expected_output)
+    assert_allclose(dz, expected_result)
 
 
-def test_one_minus_cdf():
-    sample_dict = init_standard_sample()
+z = np.linspace(-17.5, 134, 304)
+first_interface = 1 - scipy.stats.norm.cdf(x=z, loc=0, scale=3.1)
+second_interface = 1 - scipy.stats.norm.cdf(
+    x=z,
+    loc=0 + 19.7,
+    scale=5,
+)
+third_interface = 1 - scipy.stats.norm.cdf(
+    x=z,
+    loc=0 + 19.7 + 50,
+    scale=7.3,
+)
+fourth_interface = 1 - scipy.stats.norm.cdf(
+    x=z,
+    loc=0 + 19.7 + 50 + 30,
+    scale=6,
+)
 
-    z = np.linspace(-17.5, 134, 304)
-    first_interface = 1 - scipy.stats.norm.cdf(
-        x=z, loc=sample_dict["thicks"][0], scale=sample_dict["roughs"][0]
-    )
-    second_interface = 1 - scipy.stats.norm.cdf(
-        x=z,
-        loc=sample_dict["thicks"][0] + sample_dict["thicks"][1],
-        scale=sample_dict["roughs"][1],
-    )
-    third_interface = 1 - scipy.stats.norm.cdf(
-        x=z,
-        loc=sample_dict["thicks"][0]
-        + sample_dict["thicks"][1]
-        + sample_dict["thicks"][2],
-        scale=sample_dict["roughs"][2],
-    )
-    fourth_interface = 1 - scipy.stats.norm.cdf(
-        x=z,
-        loc=sample_dict["thicks"][0]
-        + sample_dict["thicks"][1]
-        + sample_dict["thicks"][2]
-        + sample_dict["thicks"][3],
-        scale=sample_dict["roughs"][3],
-    )
 
-    expected_output = np.vstack(
-        (first_interface, second_interface, third_interface, fourth_interface)
-    )
-
+@pytest.mark.parametrize(
+    "z, idx, expected_output",
+    [
+        pytest.param(z, 0, first_interface, id="First one_minus_cdf test."),
+        pytest.param(z, 1, second_interface, id="Second one_minus_cdf test."),
+        pytest.param(z, 2, third_interface, id="Third one_minus_cdf test."),
+        pytest.param(z, 3, fourth_interface, id="Fourth one_minus_cdf test."),
+    ],
+)
+def test_one_minus_cdf(
+    z: np.ndarray, idx: int, expected_output: np.ndarray, init_standard_sample
+) -> None:
+    sample_dict = init_standard_sample
+    # follow same process as in vfp
     tup_thicks = tuple(sample_dict["thicks"])
     arr_thicks = np.array(tup_thicks)
     cumthick = np.cumsum(arr_thicks)
-
     tup_roughs = tuple(sample_dict["roughs"])
     arr_roughs = np.array(tup_roughs)
+    output = one_minus_cdf(z, cumthick[idx], arr_roughs[idx])
+    assert_allclose(output, expected_output)
 
-    first_interf_output = one_minus_cdf(z, cumthick[0], arr_roughs[0])
-    second_interf_output = one_minus_cdf(z, cumthick[1], arr_roughs[1])
-    third_interf_output = one_minus_cdf(z, cumthick[2], arr_roughs[2])
-    fourth_interf_output = one_minus_cdf(z, cumthick[3], arr_roughs[3])
 
-    real_output = np.vstack(
-        (
-            first_interf_output,
-            second_interf_output,
-            third_interf_output,
-            fourth_interf_output,
-        )
+first_demag_arr_expected = np.ones((5, 304))
+first_demag_factor = scipy.stats.norm.cdf(
+    np.linspace(-17.5, 134, 304), loc=1, scale=1
+) * (
+    1
+    - scipy.stats.norm.cdf(np.linspace(-17.5, 134, 304), loc=1 + 25, scale=5)
+)
+first_demag_arr_expected[2] = 1 - first_demag_factor
+
+second_demag_arr_expected = np.ones((5, 258))
+second_demag_factor = scipy.stats.norm.cdf(
+    np.linspace(-21.5, 107, 258), loc=1, scale=1.3
+) * (
+    1
+    - scipy.stats.norm.cdf(np.linspace(-21.5, 107, 258), loc=1 + 23, scale=7)
+) + scipy.stats.norm.cdf(
+    np.linspace(-21.5, 107, 258), loc=1 + 23, scale=7
+) * scipy.stats.norm.cdf(
+    np.linspace(-21.5, 107, 258), loc=1 + 23 + 18, scale=4.2
+) * (
+    1
+    - scipy.stats.norm.cdf(
+        np.linspace(-21.5, 107, 258), loc=1 + 23 + 18 + 22, scale=5.1
     )
-
-    assert_allclose(real_output, expected_output)
-
-
-def test_init_demag():
-    sample_dict = init_standard_sample()
-
-    z = np.linspace(-17.5, 134, 304)
-    first_layer_vfp = scipy.stats.norm.cdf(
-        x=z, loc=sample_dict["thicks"][0], scale=sample_dict["roughs"][0]
-    )
-    second_layer_vfp = scipy.stats.norm.cdf(
-        x=z, loc=sample_dict["thicks"][1], scale=sample_dict["roughs"][1]
-    )
-    third_layer_vfp = scipy.stats.norm.cdf(
-        x=z, loc=sample_dict["thicks"][2], scale=sample_dict["roughs"][2]
-    )
-    fourth_layer_vfp = scipy.stats.norm.cdf(
-        x=z, loc=sample_dict["thicks"][3], scale=sample_dict["roughs"][3]
-    )
-    expected_vfp = np.vstack(
-        (
-            1 - first_layer_vfp,
-            first_layer_vfp * (1 - second_layer_vfp),
-            first_layer_vfp * second_layer_vfp * (1 - third_layer_vfp),
-            first_layer_vfp
-            * second_layer_vfp
-            * third_layer_vfp
-            * (1 - fourth_layer_vfp),
-            first_layer_vfp
-            * second_layer_vfp
-            * third_layer_vfp
-            * fourth_layer_vfp,
-        )
-    )
-    res = init_demag(
-        locs=tuple(sample_dict["locs"]),
-        widths=tuple(sample_dict["widths"]),
-        mslds=tuple(sample_dict["mslds"]),
-        zeds=tuple(np.linspace(-17.5, 134, 304)),
-        vfp=tuple(tuple(i) for i in expected_vfp),
-    )
-
-    expected_demag_arr = np.ones(shape=(len(sample_dict["mslds"]), 304))
-    expected_demag_arr[2] = 1 - (
-        scipy.stats.norm.cdf(np.linspace(-17.5, 134, 304), loc=1, scale=1)
-        * (
-            1
-            - scipy.stats.norm.cdf(
-                np.linspace(-17.5, 134, 304), loc=1 + 25, scale=5
-            )
-        )
-    )
-    exp_mag_comp = expected_vfp * expected_demag_arr
-    difference_arr = (
-        np.abs(np.diff(exp_mag_comp, axis=1))
-        < MICROSLICE_EQUIVALENCE_THRESHOLD
-    )
-    reduce_diff_arr = np.all(difference_arr, axis=0)
-    (indices_full,) = np.nonzero(reduce_diff_arr)
-
-    indices = np.asarray(indices_full)
-    to_delete_indices = indices + 1
-    seperate_indices = np.split(
-        to_delete_indices, (np.diff(to_delete_indices) != 1).nonzero()[0] + 1
-    )
-    expected_idx = np.concatenate([arr[:-1] for arr in seperate_indices])
-
-    # now remove parts of the vfps and mag_comp where they are ~ invariant.
-    reduced_vfp = np.delete(expected_vfp, expected_idx, 1)
-    reduced_magcomp = np.delete(exp_mag_comp, expected_idx, 1)
-
-    assert_allclose(res[0], reduced_vfp)
-    assert_allclose(res[1], reduced_magcomp)
-    assert_allclose(res[2], indices_full)
-    assert_allclose(res[3], expected_demag_arr)
+)
+second_demag_arr_expected[1] = 1 - second_demag_factor
+second_demag_arr_expected[3] = 1 - second_demag_factor
 
 
-def test_calc_zeds():
-    sample_dict = init_standard_sample()
+@pytest.mark.parametrize(
+    "zed, standard_sample_name, expected_result",
+    [
+        pytest.param(
+            np.linspace(-17.5, 134, 304),
+            "init_standard_sample",
+            first_demag_arr_expected,
+            id="First calc_demag_arr test.",
+        ),
+        pytest.param(
+            np.linspace(-21.5, 107, 258),
+            "init_standard_sample_two",
+            second_demag_arr_expected,
+            id="Second calc_demag_arr test.",
+        ),
+    ],
+)
+def test_calc_demag_array(
+    zed: np.ndarray,
+    standard_sample_name: str,
+    expected_result: np.ndarray,
+    request: pytest.FixtureRequest,
+) -> None:
+    sample_dict = request.getfixturevalue(standard_sample_name)
+    locs = sample_dict["locs"]
+    widths = sample_dict["widths"]
+    mslds = sample_dict["mslds"]
+    tup_locs, tup_widths, tup_mslds = tuple(locs), tuple(widths), tuple(mslds)
+    output = calc_demag_array(tup_locs, tup_widths, tup_mslds, tuple(zed))
+    assert_allclose(output, expected_result, atol=np.finfo(float).eps)
+
+
+@pytest.mark.parametrize(
+    "standard_sample_name, mxdz, expected_result",
+    [
+        pytest.param(
+            "init_standard_sample",
+            0.5,
+            np.linspace(-17.5, 134, 304),
+            id="First calc_dz test.",
+        ),
+        pytest.param(
+            "init_standard_sample_two",
+            1,
+            np.linspace(-22, 107, 130),
+            id="Second calc_dz test.",
+        ),
+    ],
+)
+def test_calc_zeds(
+    standard_sample_name: str,
+    mxdz: float,
+    expected_result: np.ndarray,
+    request: pytest.FixtureRequest,
+) -> None:
+    sample_dict = request.getfixturevalue(standard_sample_name)
     zeds = calc_zeds(
         rough=tuple(sample_dict["roughs"]),
         thick=tuple(sample_dict["thicks"]),
-        mxdz=0.5,
+        mxdz=mxdz,
     )
-    expected_output = np.linspace(-17.5, 134, 304)
-    assert_allclose(zeds, expected_output)
+    assert_allclose(zeds, expected_result)
 
 
-def test_calc_vfp():
-    sample_dict = init_standard_sample()
+z1 = np.linspace(-17.5, 134, 304)
+first_vfp_first_interface = scipy.stats.norm.cdf(x=z1, loc=0, scale=3.1)
+first_vfp_second_interface = scipy.stats.norm.cdf(
+    x=z1,
+    loc=0 + 19.7,
+    scale=5,
+)
+first_vfp_third_interface = scipy.stats.norm.cdf(
+    x=z1,
+    loc=0 + 19.7 + 50,
+    scale=7.3,
+)
+first_vfp_fourth_interface = scipy.stats.norm.cdf(
+    x=z1,
+    loc=0 + 19.7 + 50 + 30,
+    scale=6,
+)
+
+first_vfp_expected_output = np.vstack(
+    (
+        1 - first_vfp_first_interface,
+        first_vfp_first_interface * (1 - first_vfp_second_interface),
+        first_vfp_first_interface
+        * first_vfp_second_interface
+        * (1 - first_vfp_third_interface),
+        first_vfp_first_interface
+        * first_vfp_second_interface
+        * first_vfp_third_interface
+        * (1 - first_vfp_fourth_interface),
+        first_vfp_first_interface
+        * first_vfp_second_interface
+        * first_vfp_third_interface
+        * first_vfp_fourth_interface,
+    )
+)
+z2 = np.linspace(-21.5, 107, 258)
+second_vfp_first_interface = scipy.stats.norm.cdf(x=z2, loc=0, scale=4.1)
+second_vfp_second_interface = scipy.stats.norm.cdf(
+    x=z2,
+    loc=0 + 32.8,
+    scale=4.1,
+)
+second_vfp_third_interface = scipy.stats.norm.cdf(
+    x=z2,
+    loc=0 + 32.8 + 16.3,
+    scale=7,
+)
+second_vfp_fourth_interface = scipy.stats.norm.cdf(
+    x=z2,
+    loc=0 + 32.8 + 16.3 + 24.6,
+    scale=3,
+)
+
+second_vfp_expected_output = np.vstack(
+    (
+        1 - second_vfp_first_interface,  # fronting
+        (1 - second_vfp_second_interface)
+        - (1 - second_vfp_first_interface),  # lay1
+        second_vfp_second_interface
+        * (1 - second_vfp_third_interface),  # lay2
+        second_vfp_second_interface
+        * second_vfp_third_interface
+        * (1 - second_vfp_fourth_interface),  # lay3
+        1
+        - np.sum(  # backing
+            (
+                1 - second_vfp_first_interface,  # f
+                (1 - second_vfp_second_interface)
+                - (1 - second_vfp_first_interface),  # lay1
+                second_vfp_second_interface
+                * (1 - second_vfp_third_interface),  # lay2
+                second_vfp_second_interface
+                * second_vfp_third_interface
+                * (1 - second_vfp_fourth_interface),  # lay3
+            ),
+            axis=0,
+        ),
+    )
+)
+
+
+@pytest.mark.parametrize(
+    "zeds, expected_result, standard_sample_name",
+    [
+        pytest.param(
+            np.linspace(-17.5, 134, 304),
+            first_vfp_expected_output,
+            "init_standard_sample",
+            id="First calc_vfp test.",
+        ),
+        pytest.param(
+            np.linspace(-21.5, 107, 258),
+            second_vfp_expected_output,
+            "init_standard_sample_two",
+            id="Second calc_vfp test.",
+        ),
+    ],
+)
+def test_calc_vfp(
+    zeds: np.ndarray,
+    expected_result: np.ndarray,
+    standard_sample_name: str,
+    request: pytest.FixtureRequest,
+) -> None:
+    sample_dict = request.getfixturevalue(standard_sample_name)
+    thicks, roughs, conformals = (
+        sample_dict["thicks"],
+        sample_dict["roughs"],
+        sample_dict["conformal"],
+    )
 
     vfp_res = calc_vfp(
-        rough=tuple(sample_dict["roughs"]),
-        thick=tuple(sample_dict["thicks"]),
-        zeds=tuple(np.linspace(-17.5, 134, 304)),
-        conformal=tuple(sample_dict["conformal"]),
+        rough=tuple(roughs),
+        thick=tuple(thicks),
+        zeds=tuple(zeds),
+        conformal=tuple(conformals),
     )
-
-    z = np.linspace(-17.5, 134, 304)
-    first_interface = scipy.stats.norm.cdf(
-        x=z, loc=sample_dict["thicks"][0], scale=sample_dict["roughs"][0]
-    )
-    second_interface = scipy.stats.norm.cdf(
-        x=z,
-        loc=sample_dict["thicks"][0] + sample_dict["thicks"][1],
-        scale=sample_dict["roughs"][1],
-    )
-    third_interface = scipy.stats.norm.cdf(
-        x=z,
-        loc=sample_dict["thicks"][0]
-        + sample_dict["thicks"][1]
-        + sample_dict["thicks"][2],
-        scale=sample_dict["roughs"][2],
-    )
-    fourth_interface = scipy.stats.norm.cdf(
-        x=z,
-        loc=sample_dict["thicks"][0]
-        + sample_dict["thicks"][1]
-        + sample_dict["thicks"][2]
-        + sample_dict["thicks"][3],
-        scale=sample_dict["roughs"][3],
-    )
-
-    expected_output = np.vstack(
-        (
-            1 - first_interface,
-            first_interface * (1 - second_interface),
-            first_interface * second_interface * (1 - third_interface),
-            first_interface
-            * second_interface
-            * third_interface
-            * (1 - fourth_interface),
-            first_interface
-            * second_interface
-            * third_interface
-            * fourth_interface,
-        )
-    )
-
-    assert_allclose(
-        vfp_res, expected_output, atol=np.finfo(float).eps, rtol=0
-    )
+    assert_allclose(vfp_res, expected_result, atol=np.finfo(float).eps)
 
 
-def test_get_demag():
-    zed = np.linspace(-17.5, 134, 304)
-    # test no width and no locs case
-    expected_output = np.zeros_like(zed)
-    real_output = get_demag(dist=zed, locs=np.array([]), widths=np.array([]))
-    assert_allclose(real_output, expected_output)
-    # test 1 set of widths and locs
-    real_output = get_demag(
-        dist=zed, locs=np.array([1, 25]), widths=np.array([1, 5])
-    )
-    expected_output = scipy.stats.norm.cdf(zed, loc=1, scale=1) * (
-        1 - scipy.stats.norm.cdf(zed, loc=1 + 25, scale=5)
-    )
-    assert_allclose(real_output, expected_output)
-    # test 2 set of widths and locs.
-    real_output = get_demag(
-        dist=zed, locs=np.array([1, 25, 1, 60]), widths=np.array([1, 5, 3, 6])
-    )
-    cumlocs = np.cumsum(np.array([1, 25, 1, 60]))
-    peak1 = scipy.stats.norm.cdf(zed, loc=cumlocs[0], scale=1) * (
-        1 - scipy.stats.norm.cdf(zed, loc=cumlocs[1], scale=5)
-    )
-    peak2 = (
-        scipy.stats.norm.cdf(zed, loc=cumlocs[1], scale=5)
-        * scipy.stats.norm.cdf(zed, loc=cumlocs[2], scale=3)
-        * (1 - scipy.stats.norm.cdf(zed, loc=cumlocs[3], scale=6))
-    )
+first_test_demag_res = scipy.stats.norm.cdf(
+    np.linspace(-17.5, 134, 304), loc=1, scale=1
+) * (
+    1
+    - scipy.stats.norm.cdf(np.linspace(-17.5, 134, 304), loc=1 + 25, scale=5)
+)
 
-    expected_output = peak1 + peak2
-    assert_allclose(real_output, expected_output)
+second_test_demag_res = scipy.stats.norm.cdf(
+    np.linspace(-21.5, 107, 258), loc=1, scale=1.3
+) * (
+    1
+    - scipy.stats.norm.cdf(np.linspace(-21.5, 107, 258), loc=1 + 23, scale=7)
+) + scipy.stats.norm.cdf(
+    np.linspace(-21.5, 107, 258), loc=1 + 23, scale=7
+) * scipy.stats.norm.cdf(
+    np.linspace(-21.5, 107, 258), loc=1 + 23 + 18, scale=4.2
+) * (
+    1
+    - scipy.stats.norm.cdf(
+        np.linspace(-21.5, 107, 258), loc=1 + 23 + 18 + 22, scale=5.1
+    )
+)
 
 
-def test_integrate_vfp():
-    zed = np.linspace(-10, 10, 10001)
-    first_peak = scipy.stats.norm.pdf(zed, loc=0, scale=1)
-    second_peak = 4 * scipy.stats.norm.pdf(zed, loc=0, scale=1)
-    vfps = np.vstack((first_peak, second_peak))
+@pytest.mark.parametrize(
+    "zed, standard_sample_name, expected_result",
+    [
+        pytest.param(
+            np.linspace(-17.5, 134, 304),
+            "init_standard_sample",
+            first_test_demag_res,
+            id="First get_demag test.",
+        ),
+        pytest.param(
+            np.linspace(-21.5, 107, 258),
+            "init_standard_sample_two",
+            second_test_demag_res,
+            id="Two get_demag test.",
+        ),
+    ],
+)
+def test_get_demag(
+    zed: np.ndarray,
+    standard_sample_name: str,
+    expected_result: np.ndarray,
+    request: pytest.FixtureRequest,
+) -> None:
+    sample_dict = request.getfixturevalue(standard_sample_name)
+    locs, widths = sample_dict["locs"], sample_dict["widths"]
+    real_output = get_demag(zed, locs, widths)
+    assert_allclose(real_output, expected_result)
+
+
+@pytest.mark.parametrize(
+    "zed, peaks, layer_indices, expected_result",
+    [
+        pytest.param(
+            np.linspace(-10, 10, 10001),
+            (
+                scipy.stats.skewnorm.pdf(
+                    np.linspace(-10, 10, 10001), a=4, loc=0, scale=1
+                ),
+            ),
+            (0,),
+            (1,),
+            id="First test_integrate_test.",
+        ),
+        pytest.param(
+            np.linspace(-10, 10, 10001),
+            (
+                scipy.stats.norm.pdf(
+                    np.linspace(-10, 10, 10001), loc=0, scale=1
+                ),
+                4
+                * scipy.stats.norm.pdf(
+                    np.linspace(-10, 10, 10001), loc=0, scale=1
+                ),
+            ),
+            (0, 1),
+            (1, 4),
+            id="Second test_integrate_test.",
+        ),
+    ],
+)
+def test_integrate_vfp(
+    zed: np.ndarray,
+    peaks: tuple[np.ndarray, ...],
+    layer_indices: tuple[int, ...],
+    expected_result: tuple[float, ...],
+) -> None:
+    vfps = np.vstack(peaks)
     vfps = tuple(tuple(i) for i in vfps)
-    first_res, second_res = integrate_vfp(
-        zeds=tuple(zed), indexs=(), red_vfps=vfps, layer_indices=tuple([0, 1])
+    res_list = integrate_vfp(
+        zeds=tuple(zed), indexs=(), red_vfps=vfps, layer_indices=layer_indices
     )
-    first_expected, second_expected = (1, 4)
-    assert_allclose(first_res, first_expected)
-    assert_allclose(second_res, second_expected)
+    for res, expec in zip(res_list, expected_result, strict=False):
+        assert_allclose(res, expec)
+
+
+expected_result_heaviside_1 = np.zeros_like(np.linspace(-10, 10, 201))
+expected_result_heaviside_1[130:] = 1
+expected_result_heaviside_2 = np.zeros_like(np.linspace(-10, 10, 201))
+expected_result_heaviside_2[50:] = 1
+standard_examples_heaviside = [
+    (np.linspace(-10, 10, 201), 3, expected_result_heaviside_1),
+    (np.linspace(-10, 10, 201), -5, expected_result_heaviside_2),
+]
+
+
+@pytest.mark.parametrize(
+    "z, loc, expected_result",
+    standard_examples_heaviside,
+)
+def test_heaviside_step(
+    z: np.ndarray, loc: int, expected_result: np.ndarray
+) -> None:
+    step_fn = heaviside_step(z, loc=loc)
+    assert_allclose(step_fn, expected_result)
+
+
+@pytest.mark.parametrize(
+    "raw_idx, expected_result",
+    [
+        pytest.param(
+            np.array([1, 2, 3, 4, 5, 6]),
+            np.array([2, 3, 4, 5, 6]),
+            id="First transform_indices test.",
+        ),
+        pytest.param(
+            np.array([1, 2, 3, 4, 12, 13, 14, 15, 20]),
+            np.array([2, 3, 4, 13, 14, 15]),
+            id="Second transform_indices test.",
+        ),
+    ],
+)
+def test_transform_indices(
+    raw_idx: np.ndarray, expected_result: np.ndarray
+) -> None:
+    output = transform_indices(raw_idx)
+    assert_allclose(output, expected_result)
+
+
+vfp_f = np.concatenate([np.ones(20), np.linspace(1, 0, 6), np.zeros(23)])
+vfp_b = np.concatenate([np.zeros(20), np.linspace(0, 1, 6), np.ones(23)])
+vfp_first = np.vstack([vfp_f, vfp_b])
+vfp_first_tuple = tuple(tuple(r) for r in vfp_first)
+demag_arr_first_tuple = tuple(tuple(r) for r in np.ones(shape=(2, 49)))
+# There are 21 ones/zeros in a row at the start and
+# last digit of linspace(1, 0, 6) is zero, so there are 23
+# points that are equal at the end.
+expected_res_first = np.concatenate([np.arange(20), np.arange(25, 25 + 23)])
+
+vfp_f = np.concatenate([np.ones(5), np.linspace(1, 0, 9), np.zeros(19)])
+vfp_lay1 = np.concatenate(
+    [
+        np.zeros(5),
+        np.linspace(0, 0.75, 7),
+        np.linspace(0.75, 0, 5),
+        np.zeros(16),
+    ]
+)
+vfp_b = 1 - (vfp_f + vfp_lay1)
+vfp_second = np.vstack([vfp_f, vfp_lay1, vfp_b])
+vfp_second_tuple = tuple(tuple(r) for r in vfp_second)
+demag_arr_second_tuple = tuple(tuple(r) for r in np.ones(shape=(3, 33)))
+# 5 zeros/ones at the start. Only have stable vfps after 5+7+5 - 1
+# points.
+expected_res_second = np.concatenate(
+    [np.arange(5), np.arange(5 + 6 + 5, 5 + 6 + 5 + 16)]
+)
+
+
+@pytest.mark.parametrize(
+    "vfp, demag_arr, expected_result",
+    [
+        pytest.param(
+            vfp_first_tuple,
+            demag_arr_first_tuple,
+            expected_res_first,
+            id="First calc_indices test.",
+        ),
+        pytest.param(
+            vfp_second_tuple,
+            demag_arr_second_tuple,
+            expected_res_second,
+            id="Second calc_indices test.",
+        ),
+    ],
+)
+def test_calc_indices(
+    vfp: tuple[tuple[float, ...]],
+    demag_arr: tuple[tuple[float, ...]],
+    expected_result: np.ndarray,
+) -> None:
+    output = calc_indices(vfp, demag_arr)
+    assert_allclose(output, expected_result)
+
+
+# transformed indices are +1 leaving the last off in a consecutive series.
+raw_idx_first = expected_res_first
+expect_idx_first = np.concatenate(
+    [np.arange(1, 20), np.arange(25 + 1, 25 + 23)]
+)
+expected_first_res = np.delete(vfp_first, expect_idx_first, 1)
+
+raw_idx_second = expected_res_second
+expect_idx_second = np.concatenate(
+    [np.arange(1, 5), np.arange(5 + 6 + 5 + 1, 5 + 6 + 5 + 16)]
+)
+expected_second_res = np.delete(vfp_second, expect_idx_second, 1)
+
+
+@pytest.mark.parametrize(
+    "vfp, magcomp, idx, expected_result",
+    [
+        pytest.param(
+            vfp_first,
+            vfp_first * np.ones(shape=(2, 49)),
+            raw_idx_first,
+            expected_first_res,
+            id="First reduce_vfp_and_magcomp test.",
+        ),
+        pytest.param(
+            vfp_second,
+            vfp_second * np.ones(shape=(3, 33)),
+            raw_idx_second,
+            expected_second_res,
+            id="Second reduce_vfp_and_magcomp test.",
+        ),
+    ],
+)
+def test_reduce_vfp_and_magcomp(
+    vfp: np.ndarray,
+    magcomp: np.ndarray,
+    idx: np.ndarray,
+    expected_result: np.ndarray,
+) -> None:
+    reduced_vfp_output, reduced_magcomp_output = reduce_vfp_and_magcomp(
+        vfp, magcomp, idx
+    )
+    assert_allclose(reduced_vfp_output, expected_result)
+    # as this example has no deviation in demag_arr from 1,
+    # magcomp will be equal to vfp.
+    assert_allclose(reduced_magcomp_output, expected_result)

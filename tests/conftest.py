@@ -6,6 +6,8 @@ from refnx.reflect import SLD
 rng = np.random.default_rng(seed=41)
 surface_rng = np.random.default_rng(seed=42)
 
+# fixutres for plotting
+
 
 @pytest.fixture
 def sld_setup():
@@ -238,3 +240,50 @@ def plot_kwargs(posterior_samples_setup, materials_by_layer_setup):
         for key, akwargs in zip(keys, addn_plot_kwargs, strict=False)
     }
     yield final_plot_kwargs
+
+
+# fixtures for test_calc
+@pytest.fixture()
+def init_standard_sample():
+    # set up some quick standard test parameters.
+    # 4 layers + use some non-integer values.
+    lot = [0, 19.7, 50, 30]
+    lor = [3.1, 5, 7.3, 6]
+    nslds = [0, 6, 4, 3.47, 2.07]
+    mslds = [0, 0, 3, 0, 0]
+    locs = [1, 25]
+    widths = [1, 5]
+    conformal = [0, 0, 0, 0]
+    dict_res = {
+        "thicks": lot,
+        "roughs": lor,
+        "nslds": nslds,
+        "mslds": mslds,
+        "locs": locs,
+        "widths": widths,
+        "conformal": conformal,
+    }
+    yield dict_res
+
+
+@pytest.fixture()
+def init_standard_sample_two():
+    # set up some quick standard test parameters.
+    # 4 layers + use some non-integer values.
+    lot = [0, 32.8, 16.3, 24.6]
+    lor = [4.1, 6, 7, 3]
+    nslds = [5.9, 1.2, 3.6, 0.1, -0.46]
+    mslds = [0, 1.1, 0, 2.2, 0]
+    locs = [1, 23, 18, 22]
+    widths = [1.3, 7, 4.2, 5.1]
+    conformal = [0, 1, 0, 0]
+    dict_res = {
+        "thicks": lot,
+        "roughs": lor,
+        "nslds": nslds,
+        "mslds": mslds,
+        "locs": locs,
+        "widths": widths,
+        "conformal": conformal,
+    }
+    yield dict_res
