@@ -2,9 +2,9 @@
 These plots should not be regenerated unless some plotting change is required.
 """
 
+import copy
 import pathlib
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from refnx.analysis import Parameter
@@ -159,15 +159,22 @@ addn_kwargs = [
 final_kwargs = [base_kwargs | akwargs for akwargs in addn_kwargs]
 vfps = [vfp.refnxVFP(**f_kwarg) for f_kwarg in final_kwargs]
 
+original_ps = copy.deepcopy(vfps[0].varying_parameters)
+
 surface_rng = np.random.default_rng(seed=42)
 
-base_plot_kwargs = dict(
-    surface_rng=surface_rng, posterior_samples=posterior_samples
-)
+base_plot_kwargs = dict(posterior_samples=posterior_samples)
 addn_plot_kwargs = [
     {
         "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
         "sld_plot_kwargs": {"microslice": True, "total_sld": True},
+        "surface_plot_kwargs": {"surface_rng": surface_rng},
+    },
+    {
+        "align_at": 2,
+        "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
+        "sld_plot_kwargs": {"microslice": True, "total_sld": False},
+        "surface_plot_kwargs": {"surface_rng": surface_rng},
     },
     {
         "plots_required": ["sld", "vfp"],
@@ -175,7 +182,15 @@ addn_plot_kwargs = [
         "sld_plot_kwargs": {"microslice": False, "total_sld": False},
     },
     {"plots_required": ["vfp"], "posterior_samples": None},
-    {"plots_required": ["surfaces", "vfp"]},
+    {
+        "plots_required": ["surfaces", "vfp"],
+        "surface_plot_kwargs": {"surface_rng": surface_rng},
+    },
+    {
+        "align_at": 3,
+        "plots_required": ["surfaces", "vfp"],
+        "surface_plot_kwargs": {"surface_rng": surface_rng},
+    },
 ]
 final_plot_kwargs = [
     base_plot_kwargs | akwargs for akwargs in addn_plot_kwargs
@@ -188,6 +203,8 @@ def plot_vfp(
     figs = []
     for v in vfps:
         for f_p_kwarg in final_plot_kwargs:
+            # ensure parameters back to original
+            v.varying_parameters = original_ps
             fig, _ = v.plot(**f_p_kwarg)
             figs.append(fig)
     return figs
@@ -198,20 +215,25 @@ figs = plot_vfp(vfps, final_plot_kwargs)
 image_arrs = figs_to_arr(figs)
 descrips = [
     "front_allplots_layermats_mslice_tsld",
+    "front_allplots_layermats_mslice_align_at_2",
     "front_sldvfpplots_layermats",
     "front_vfp_post",
     "front_surfacesvfp",
+    "front_surfacesvfp_align_at_3",
     "back_ssup_allplots_layermats_mslice_tsld",
+    "back_ssup_allplots_layermats_mslice_align_at_2",
     "back_ssup_sldvfpplots_layermats",
     "back_ssup_vfp_post",
     "back_ssup_surfacesvfp",
+    "back_ssup_surfacesvfp_align_at_3",
     "front_mdz_01_ss_down_allplots_layermats_mslice_tsld",
+    "front_mdz_01_ss_down_allplots_layermats_mslice_align_at_2",
     "front_mdz_01_ss_down_sldvfpplots_layermats",
     "front_mdz_01_ss_down_vfp_post",
     "front_mdz_01_ss_down_surfacesvfp",
+    "front_mdz_01_ss_down_surfacesvfp_align_at_3",
 ]
 
-plt.show()
 plots_dict = {
     descp: im_arr for descp, im_arr in zip(descrips, image_arrs, strict=False)
 }

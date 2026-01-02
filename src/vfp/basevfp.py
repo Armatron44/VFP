@@ -330,7 +330,7 @@ class BaseVFP(ABC):
         return p_vfp, demag_vfp
 
     def z_and_sld(
-        self, reduced: bool = True
+        self, reduced: bool = True, align_at_interface: int = 0
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Get z and sld values from vfp for plotting.
@@ -342,6 +342,9 @@ class BaseVFP(ABC):
         ----------
         reduced : bool
             If False/True, will return full/reduced zs and slds.
+        align_at_interface : int, optional
+            Which interface index to set z = 0. Defaults to
+            first interface.
 
         Returns
         -------
@@ -351,22 +354,19 @@ class BaseVFP(ABC):
             coherent, imaginary, magnetic across columns.
             Either reduced or full.
         """
+        if np.abs(align_at_interface) >= len(self.vfp_attrs.thicknesses):
+            raise ValueError(
+                "align_at_interface must be an index of the layers."
+            )
         self.process_model()  # update the model.
-        z = np.array(self.zeds)
+        offset = np.cumsum(self.tup_thicks)[align_at_interface]
+        z = np.array(self.zeds) - offset
+        z = -z if self.vfp_attrs.orientation == "back" else z
+        slds = self.get_slds(reduced=reduced)
         # conditionally remove z at indices.
         if reduced:
             delete_idx = transform_indices(self.indices)
             z = np.delete(z, delete_idx)
-
-        if self.vfp_attrs.orientation == "front":
-            slds = self.get_slds(reduced=reduced)
-
-        # if reverse orientation, subtract length of interface & flip.
-        if self.vfp_attrs.orientation == "back":
-            slds = self.get_slds(reduced=reduced)
-            offset = np.sum(self.tup_thicks)
-            z = -(z - offset)
-
         return z, slds.T
 
     def sld_offset(self) -> float:
@@ -429,15 +429,14 @@ class BaseVFP(ABC):
         self,
         plots_required: list[Literal["sld", "vfp", "surfaces"]] | None = None,
         posterior_samples: dict[str, np.ndarray] | None = None,
-        surface_points: int = 50,
-        surface_rng: np.random.Generator | None = None,
+        align_at_interface: int | None = None,
         fig: Figure | None = None,
         sld_plot_kwargs: SldPlotKwargType | None = None,
         vfp_plot_kwargs: VfpPlotKwargType | None = None,
         surface_plot_kwargs: SurfacePlotKwargType | None = None,
     ) -> tuple[Figure, Axes | np.ndarray[Axes]]:
         """
-        Makes a one to three axis figure to visualise VFP model.
+        Makes a one to three axis figure to visualise the VFP model.
 
         By default the order of the plots are:
             Top plot = nsld / msld / isld
@@ -457,25 +456,20 @@ class BaseVFP(ABC):
             The keys should match the names of varying parameters in the vfp.
             Array values should be 1D of parameter values.
             By default is None.
-        surface_points : integer, optional
-            Number of points to simulate across each interface.
-            By default, 50.
-        surface_rng : np.random.Generator | None, optional
-            Random number generator for producing draws from each interface's
-            modelled distribution. If supplied, will generate deterministic
-            draws so that the results are repeatable. If not supplied, a
-            random seed will be set when calling this function.
+        align_at_interface : int | None, optional
+            Specifies which interface is defined as z = 0 by index.
+            If not specified, defaults to first interface.
         fig : Figure | None, optional.
             If supplied, plots will be plotted on `fig`.
             By default a new Figure will be created.
         sld_plot_kwargs : SldPlotKwargType | None, optional
-            Kwargs to be passed to vfp.plotting.PlotType._plot_sld.
+            Kwargs to be passed to `vfp.plotting.PlotType._plot_sld`.
             By default None.
         vfp_plot_kwargs : VfpPlotKwargType | None, optional
-            Kwargs to be passed to vfp.plotting.PlotType._plot_vfp.
+            Kwargs to be passed to `vfp.plotting.PlotType._plot_vfp`.
             By default None.
         surface_plot_kwargs : SurfacePlotKwargType | None, optional
-            Kwargs to be passed to vfp.plotting.PlotType._plot_surfaces.
+            Kwargs to be passed to `vfp.plotting.PlotType._plot_surfaces`.
             By default None.
 
         Returns
@@ -503,18 +497,22 @@ class BaseVFP(ABC):
                 f"plots_required must be a list, got {type(plots_required)}."
             )
 
-        surface_rng = (
-            surface_rng
-            if surface_rng is not None
-            else np.random.default_rng()
+        align_at_interface = (
+            0 if align_at_interface is None else align_at_interface
         )
+        if not isinstance(align_at_interface, int):
+            raise TypeError("align_at must be an integer")
+
+        if np.abs(align_at_interface) >= len(self.vfp_attrs.thicknesses):
+            raise ValueError(
+                "align_at_interface must be an index of the layers."
+            )
 
         fig, ax = model_plot(
             vfp=self,
             plots_required=plots_required,
             posterior_samples=posterior_samples,
-            surface_points=surface_points,
-            surface_rng=surface_rng,
+            align_at_interface=align_at_interface,
             fig=fig,
             sld_plot_kwargs=sld_plot_kwargs,
             vfp_plot_kwargs=vfp_plot_kwargs,
