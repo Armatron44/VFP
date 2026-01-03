@@ -336,6 +336,10 @@ class BaseVFP(ABC):
             Either reduced or full.
         """
         offset = np.cumsum(self.vfp_attrs.tup_thicks)[align_at_interface]
+        if np.abs(align_at_interface) >= len(self.vfp_attrs.thicknesses):
+            raise ValueError(
+                "align_at_interface must be an index of the layers."
+            )
         z = np.array(self.zeds) - offset
         z = -z if self.vfp_attrs.orientation == "back" else z
         slds = self.get_slds(reduced=reduced)
@@ -404,7 +408,7 @@ class BaseVFP(ABC):
         self,
         plots_required: list[Literal["sld", "vfp", "surfaces"]] | None = None,
         posterior_samples: dict[str, np.ndarray] | None = None,
-        align_at: int | None = None,
+        align_at_interface: int | None = None,
         fig: Figure | None = None,
         sld_plot_kwargs: SldPlotKwargType | None = None,
         vfp_plot_kwargs: VfpPlotKwargType | None = None,
@@ -431,7 +435,7 @@ class BaseVFP(ABC):
             The keys should match the names of varying parameters in the vfp.
             Array values should be 1D of parameter values.
             By default is None.
-        align_at : int | None, optional
+        align_at_interface : int | None, optional
             Specifies which interface is defined as z = 0 by index.
             If not specified, defaults to first interface.
         fig : Figure | None, optional.
@@ -469,15 +473,22 @@ class BaseVFP(ABC):
                 f"plots_required must be a list, got {type(plots_required)}."
             )
 
-        if isinstance(align_at, int):
-            if align_at > len(self.vfp_attrs.thicknesses) - 1:
-                raise ValueError("align_at must be an index of the layers.")
+        align_at_interface = (
+            0 if align_at_interface is None else align_at_interface
+        )
+        if not isinstance(align_at_interface, int):
+            raise TypeError("align_at must be an integer")
+
+        if np.abs(align_at_interface) >= len(self.vfp_attrs.thicknesses):
+            raise ValueError(
+                "align_at_interface must be an index of the layers."
+            )
 
         fig, ax = model_plot(
             vfp=self,
             plots_required=plots_required,
             posterior_samples=posterior_samples,
-            align_at=align_at,
+            align_at_interface=align_at_interface,
             fig=fig,
             sld_plot_kwargs=sld_plot_kwargs,
             vfp_plot_kwargs=vfp_plot_kwargs,

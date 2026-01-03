@@ -203,7 +203,7 @@ def plot_kwargs(posterior_samples_setup, materials_by_layer_setup):
             "surface_plot_kwargs": {"surface_rng": surface_rng},
         },
         {
-            "align_at": 2,
+            "align_at_interface": 2,
             "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
             "sld_plot_kwargs": {"microslice": True, "total_sld": False},
             "surface_plot_kwargs": {"surface_rng": surface_rng},
@@ -219,7 +219,7 @@ def plot_kwargs(posterior_samples_setup, materials_by_layer_setup):
             "surface_plot_kwargs": {"surface_rng": surface_rng},
         },
         {
-            "align_at": 3,
+            "align_at_interface": 3,
             "plots_required": ["surfaces", "vfp"],
             "surface_plot_kwargs": {"surface_rng": surface_rng},
         },
