@@ -284,6 +284,97 @@ def test_vfps_vfp(
         np.testing.assert_allclose(v.vfp, expected_result, atol=EPS)
 
 
+start = -17  # -5 - (4 * 3) = -17
+end = 96  # 5 + (0 + 30 + 30 + 15) + 4 * 4 = 96
+z = np.linspace(start, end, int((end - start) / 0.5) + 1)
+fronting = 1 - norm.cdf(
+    z, loc=0, scale=3
+)  # fronting is constant, cannot be conformal.
+first_lay_e0 = norm.cdf(z, loc=0, scale=3) * (
+    1 - norm.cdf(z, loc=30, scale=2)
+)
+second_lay_e0 = (
+    norm.cdf(z, loc=0, scale=3)
+    * norm.cdf(z, loc=30, scale=2)
+    * (1 - norm.cdf(z, loc=30 + 30, scale=4))
+)
+third_lay_e0 = (
+    norm.cdf(z, loc=0, scale=3)
+    * norm.cdf(z, loc=30, scale=2)
+    * (norm.cdf(z, loc=30 + 30, scale=4))
+    * (1 - (norm.cdf(z, loc=30 + 30 + 15, scale=1.5)))
+)
+backing_e0 = 1 - np.sum(
+    (fronting, first_lay_e0, second_lay_e0, third_lay_e0), axis=0
+)
+first_vfp_roughnesses = (3, 2, 4, 1.5)
+first_vfp_expected = np.vstack(
+    (fronting, first_lay_e0, second_lay_e0, third_lay_e0, backing_e0)
+)
+
+# conformal = (0, 1, 1, 0)
+end = 92  # 5 + (0 + 30 + 30 + 15) + 4 * 3 = 92
+z = np.linspace(start, end, int((end - start) / 0.5) + 1)
+fronting_e4 = 1 - norm.cdf(z, loc=0, scale=3)
+f0_st1 = norm.cdf(z, loc=0 + 30, scale=3)
+f0_st1t2 = norm.cdf(z, loc=0 + 30 + 30, scale=3)
+
+first_lay_e4 = (1 - f0_st1) - fronting_e4
+second_lay_e4 = (1 - f0_st1t2) - (first_lay_e4 + fronting_e4)
+third_lay_e4 = f0_st1t2 * (1 - norm.cdf(z, loc=30 + 30 + 15, scale=1.5))
+backing_e4 = 1 - np.sum(
+    (fronting_e4, first_lay_e4, second_lay_e4, third_lay_e4), axis=0
+)
+second_vfp_roughnesses = (3, "conformal", "conformal", 1.5)
+second_vfp_expected = np.vstack(
+    (fronting_e4, first_lay_e4, second_lay_e4, third_lay_e4, backing_e4)
+)
+
+
+@pytest.mark.parametrize(
+    "roughnesses, expected_result",
+    [
+        pytest.param(
+            first_vfp_roughnesses,
+            first_vfp_expected,
+            id="First changing vfp test.",
+        ),
+        pytest.param(
+            second_vfp_roughnesses,
+            second_vfp_expected,
+            id="Second changing vfp test.",
+        ),
+    ],
+)
+def test_changing_vfp(
+    roughnesses: list[ParameterLike | str], expected_result: np.ndarray
+) -> None:
+    setup_thicknesses = (0, 20, 30, 15)
+    change_thicknesses = np.array([0, 30, 30, 15])
+    slds = (2, 3, 0, 1.5, 6.7)
+    vfp = VFP(
+        nslds=slds, thicknesses=setup_thicknesses, roughnesses=roughnesses
+    )
+    refnx_vfp = refnxVFP(
+        nslds=slds, thicknesses=setup_thicknesses, roughnesses=roughnesses
+    )
+    refl1d_vfp = refl1dVFP(
+        nslds=slds, thicknesses=setup_thicknesses, roughnesses=roughnesses
+    )
+
+    # check vfp types are same
+    np.testing.assert_allclose(vfp.vfp, refnx_vfp.vfp)
+    np.testing.assert_allclose(vfp.vfp, refl1d_vfp.vfp)
+    np.testing.assert_allclose(refnx_vfp.vfp, refl1d_vfp.vfp)
+
+    vfps: list[BaseVFP] = [vfp, refnx_vfp, refl1d_vfp]
+    for v in vfps:
+        v.vfp_attrs.thicknesses = change_thicknesses
+    # check vfp attr is the same expected result
+    for v in vfps:
+        np.testing.assert_allclose(v.vfp, expected_result, atol=EPS)
+
+
 # test orientation option gives correct SLD profile for simple model
 # and a model with conformal interface.
 nslds = (0.1, 3, 4.5)
