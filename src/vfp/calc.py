@@ -112,7 +112,7 @@ def calc_dzs(
 @lru_cache(maxsize=2)
 def calc_zeds(
     rough: tuple[float, ...], thick: tuple[float, ...], mxdz: float
-) -> np.ndarray:
+) -> tuple[float, ...]:
     """
     Calculates the z values over which the interface is defined.
 
@@ -132,17 +132,13 @@ def calc_zeds(
 
     Returns
     -------
-    np.array
+    tuple[float, ...]
         Distance points.
 
     Examples
     --------
     >>> from vfp.calc import calc_zeds
     >>> zs = calc_zeds(rough=(1,), thick=(2,), mxdz=0.5)
-    >>> print(zs)
-    [-9.  -8.5 -8.  -7.5 -7.  -6.5 -6.  -5.5 -5.  -4.5 -4.  -3.5 -3.  -2.5
-     -2.  -1.5 -1.  -0.5  0.   0.5  1.   1.5  2.   2.5  3.   3.5  4.   4.5
-      5.   5.5  6.   6.5  7.   7.5  8.   8.5  9.   9.5 10.  10.5 11. ]
     """
     # convert rough & thick tuples to arrays.
     rough = np.array(rough)
@@ -162,10 +158,8 @@ def calc_zeds(
 
     # calculate number of points required in z array.
     points = np.rint((-zstart + zend) / mxdz + 1).astype(int)
-
     zeds = np.linspace(zstart, zend, num=points)
-
-    return zeds
+    return arr_to_tuple(zeds)
 
 
 def one_minus_cdf(
@@ -204,7 +198,7 @@ def calc_vfp(
     thick: tuple[float, ...],
     zeds: tuple[float, ...],
     conformal: tuple[int, ...],
-) -> np.ndarray:
+) -> tuple[tuple[float, ...], ...]:
     """
     Returns the volume fraction profile for each layer.
 
@@ -223,7 +217,7 @@ def calc_vfp(
 
     Returns
     -------
-    np.array
+    tuple[tuple[float, ...], ...]
         VFP values. Shape = (Nlayers, len(z))
     """
     rough = np.array(rough)
@@ -294,15 +288,16 @@ def calc_vfp(
     vfp[counter, :] = (
         1 - vf_sum[-1]
     )  # the backing material is simply 1-everything else.
-    return vfp
+    return arr_to_tuple(vfp)
 
 
+@lru_cache(maxsize=2)
 def calc_demag_array(
     locs: tuple[float, ...],
     widths: tuple[float, ...],
     mslds: tuple[float, ...],
     zeds: tuple[float, ...],
-) -> np.ndarray:
+) -> tuple[tuple[float, ...], ...]:
     """
     Calculate demagnetisation of each layer.
 
@@ -322,7 +317,7 @@ def calc_demag_array(
 
     Returns
     -------
-    np.ndarray
+    tuple[tuple[float, ...], ...]
         Magnetic demagnetisation before multiplication with VFP.
         Not reduced. Shape = (Nlayers, len(z))
     """
@@ -343,14 +338,14 @@ def calc_demag_array(
         if mslds[i] != 0:
             demag_arr[i] = demag_arr[i] * demag_factor
 
-    return demag_arr
+    return arr_to_tuple(demag_arr)
 
 
 @lru_cache(maxsize=2)
 def calc_indices(
     vfp: tuple[tuple[float, ...], ...],
     demag_arr: tuple[tuple[float, ...], ...],
-) -> np.ndarray:
+) -> tuple[int, ...]:
     """
     Get the indices where the mapnetic composition is ~ invariant.
 
@@ -368,7 +363,7 @@ def calc_indices(
 
     Returns
     -------
-    np.ndarray
+    tuple[int, ...]
         Indices of where vfp is ~ invariant with next neighbouring point.
     """
     vfp = np.asarray(vfp)
@@ -382,7 +377,7 @@ def calc_indices(
     )
     reduce_diff_arr = np.all(difference_arr, axis=0)
     (indices,) = np.nonzero(reduce_diff_arr)
-    return indices
+    return arr_to_tuple(indices)
 
 
 def reduce_vfp_and_magcomp(
@@ -597,3 +592,26 @@ def heaviside_step(z: np.ndarray, loc: float = 0) -> np.ndarray:
     f[centred_z < 0] = 0
     f[centred_z >= 0] = 1
     return f
+
+
+def arr_to_tuple(
+    arr: np.ndarray,
+) -> tuple[float, ...] | tuple[tuple[float, ...], ...]:
+    """
+    Convert arrays to tuples for caching.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Array to convert to tuples.
+
+    Returns
+    -------
+    tuple[float, ...] | tuple[tuple[float, ...], ...]
+        tuple or nested tuple of floats.
+    """
+    if arr.ndim == 1:
+        return tuple(val for val in arr)
+
+    elif arr.ndim == 2:  # noqa : PLR2004
+        return tuple([tuple([float(val) for val in row]) for row in arr])
