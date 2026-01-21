@@ -3,7 +3,7 @@ from __future__ import annotations
 # standard
 import warnings
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 # third party
@@ -25,7 +25,7 @@ from vfp.calc import (
 from vfp.plotting import model_plot
 from vfp.vfp_typing import (
     ParameterLike,
-    SLDConstraintType,
+    SldConstraintType,
     SldPlotKwargType,
     SurfacePlotKwargType,
     VfpPlotKwargType,
@@ -49,10 +49,36 @@ class VFPAttributes:
     orientation: Literal["front", "back"]
     demaglocs: np.ndarray
     demagwidths: np.ndarray
-    sld_constraint: None | SLDConstraintType
+    sld_constraint: None | SldConstraintType
     max_delta_z: float
     conformal: np.ndarray
     name: str
+
+    _zeds_dependents: dict[str, tuple[float, ...]] = field(
+        init=False, default_factory=dict, repr=False
+    )
+    "State of thicknesses, roughnesses when previous zeds value cached."
+    _vfp_dependents: dict[str, tuple[float, ...]] = field(
+        init=False, default_factory=dict, repr=False
+    )
+    _indices_dependents: dict[str, tuple[float, ...]] = field(
+        init=False, default_factory=dict, repr=False
+    )
+    _demag_arr_dependents: dict[str, tuple[float, ...]] = field(
+        init=False, default_factory=dict, repr=False
+    )
+    _cached_zeds: tuple[float, ...] = field(
+        init=False, default=None, repr=False
+    )
+    _cached_vfp: tuple[tuple[float, ...], ...] = field(
+        init=False, default=None, repr=False
+    )
+    _cached_indices: tuple[int, ...] = field(
+        init=False, default=None, repr=False
+    )
+    _cached_demag_arr: tuple[tuple[float, ...], ...] = field(
+        init=False, default=None, repr=False
+    )
 
     @property
     def tup_thicks(self) -> tuple[float, ...]:
@@ -95,6 +121,131 @@ class VFPAttributes:
             float(par) if par is not None else 1 for par in self.roughnesses
         )
         return rs
+
+    @property
+    def zeds(self) -> tuple[float, ...]:
+        """z space of total interface.
+
+        If already calculated for combination of `self.tup_thicks` and
+        `self.tup_roughs` will use cached value.
+        """
+        current_deps = (self.tup_thicks, self.tup_roughs)
+        if current_deps == (
+            self._zeds_dependents.get("tup_thicks"),
+            self._zeds_dependents.get("tup_roughs"),
+        ):
+            return self._cached_zeds
+        self._cached_zeds = calc_zeds(
+            self.tup_roughs,
+            self.tup_thicks,
+            self.max_delta_z,
+        )
+        (
+            self._zeds_dependents["tup_thicks"],
+            self._zeds_dependents["tup_roughs"],
+        ) = current_deps
+
+        return self._cached_zeds
+
+    @property
+    def dz(self) -> np.ndarray:
+        """The thickness of each microslab.
+
+        When orientation == back, microslabs will have same thicknesses
+        as front, just in reverse order.
+
+        This isn't cached as this is only ever called once per call to
+        `vfp.process_model`.
+        """
+        zds = self.zeds  # avoid calling the property more than once.
+        dzs = calc_dzs(zds[0], zds[-1], len(zds), self.indices)
+        # when orientation = back, slabs will have same thickness as front,
+        # just in reverse order
+        if self.orientation == "back":
+            dzs = dzs[::-1]
+        return dzs
+
+    @property
+    def vfp(self) -> tuple[tuple[float, ...], ...]:
+        "Non-reduced layer volume fraction profile."
+        current_deps = (self.tup_thicks, self.tup_roughs)
+        if current_deps == (
+            self._vfp_dependents.get("tup_thicks"),
+            self._vfp_dependents.get("tup_roughs"),
+        ):
+            return self._cached_vfp
+        self._cached_vfp = calc_vfp(
+            self.tup_roughs,
+            self.tup_thicks,
+            self.zeds,
+            tuple(self.conformal),
+        )
+        (
+            self._vfp_dependents["tup_thicks"],
+            self._vfp_dependents["tup_roughs"],
+        ) = current_deps
+        return self._cached_vfp
+
+    @property
+    def demag_arr(self) -> tuple[tuple[float, ...], ...]:
+        "Non-reduced magnetic demagnetisation of each layer."
+        current_deps = (
+            self.tup_thicks,
+            self.tup_roughs,
+            self.tup_demag_locs,
+            self.tup_demag_widths,
+            self.tup_mslds,
+        )
+        if current_deps == (
+            self._demag_arr_dependents.get("tup_thicks"),
+            self._demag_arr_dependents.get("tup_roughs"),
+            self._demag_arr_dependents.get("tup_demag_locs"),
+            self._demag_arr_dependents.get("tup_demag_widths"),
+            self._demag_arr_dependents.get("tup_mslds"),
+        ):
+            return self._cached_demag_arr
+        self._cached_demag_arr = calc_demag_array(
+            self.tup_demag_locs,
+            self.tup_demag_widths,
+            self.tup_mslds,
+            self.zeds,
+        )
+        (
+            self._demag_arr_dependents["tup_thicks"],
+            self._demag_arr_dependents["tup_roughs"],
+            self._demag_arr_dependents["tup_demag_locs"],
+            self._demag_arr_dependents["tup_demag_widths"],
+            self._demag_arr_dependents["tup_mslds"],
+        ) = current_deps
+        return self._cached_demag_arr
+
+    @property
+    def indices(self) -> tuple[int, ...]:
+        "Indices of where vfp is ~ invariant with next neighbouring point."
+        current_deps = (
+            self.tup_thicks,
+            self.tup_roughs,
+            self.tup_demag_locs,
+            self.tup_demag_widths,
+            self.tup_mslds,
+        )
+        if current_deps == (
+            self._indices_dependents.get("tup_thicks"),
+            self._indices_dependents.get("tup_roughs"),
+            self._indices_dependents.get("tup_demag_locs"),
+            self._indices_dependents.get("tup_demag_widths"),
+            self._indices_dependents.get("tup_mslds"),
+        ):
+            return self._cached_indices
+        self._cached_indices = calc_indices(self.vfp, self.demag_arr)
+        (
+            self._indices_dependents["tup_thicks"],
+            self._indices_dependents["tup_roughs"],
+            self._indices_dependents["tup_demag_locs"],
+            self._indices_dependents["tup_demag_widths"],
+            self._indices_dependents["tup_mslds"],
+        ) = current_deps
+        return self._cached_indices
 
 
 class BaseVFP(ABC):
@@ -179,7 +330,7 @@ class BaseVFP(ABC):
             return_slds = return_slds * average_slds[::-1]
             return_islds = return_islds * average_islds[::-1]
 
-        return return_slds, return_islds, self.dz
+        return return_slds, return_islds, self.vfp_attrs.dz
 
     def get_slds(self, reduced: bool = True) -> np.ndarray:
         """
@@ -201,12 +352,12 @@ class BaseVFP(ABC):
             Three sld contributions across three rows as function of
             `self.zeds`. Coherent sld, imaginary sld, magnetic sld.
         """
-        vfp = np.asarray(self.vfp)
-        demag_arr = np.asarray(self.demag_arr)
+        vfp = np.asarray(self.vfp_attrs.vfp)
+        demag_arr = np.asarray(self.vfp_attrs.demag_arr)
         mag_comp = vfp * demag_arr
         if reduced:
             vfp, mag_comp = reduce_vfp_and_magcomp(
-                vfp, mag_comp, np.asarray(self.indices)
+                vfp, mag_comp, np.asarray(self.vfp_attrs.indices)
             )
         all_slds = self.calc_slds(vfp, mag_comp)
         return all_slds
@@ -239,9 +390,9 @@ class BaseVFP(ABC):
         if self.vfp_attrs.sld_constraint is not None:
             layer_indices = self.vfp_attrs.sld_constraint.layer_choices()
             integrals = integrate_vfp(
-                self.zeds,
-                self.indices,
-                self._arrtotuple(p_vfp),
+                self.vfp_attrs.zeds,
+                self.vfp_attrs.indices,
+                self.vfp_attrs.vfp,
                 tuple(layer_indices),
             )
             # user defines a class with a callable, which returns a list of
@@ -295,13 +446,13 @@ class BaseVFP(ABC):
             First array is vfp (reduced or full). Second array is magnetic vfp
             (vfp * demag_arr) applied (reduced or full).
         """
-        vfp = np.asarray(self.vfp)
-        demag_arr = np.asarray(self.demag_arr)
+        vfp = np.asarray(self.vfp_attrs.vfp)
+        demag_arr = np.asarray(self.vfp_attrs.demag_arr)
         magcomp = vfp * demag_arr
 
         if reduced:
             vfp, magcomp = reduce_vfp_and_magcomp(
-                vfp, magcomp, np.asarray(self.indices)
+                vfp, magcomp, np.asarray(self.vfp_attrs.indices)
             )
 
         if self.vfp_attrs.orientation == "back":
@@ -340,12 +491,12 @@ class BaseVFP(ABC):
             raise ValueError(
                 "align_at_interface must be an index of the layers."
             )
-        z = np.array(self.zeds) - offset
+        z = np.array(self.vfp_attrs.zeds) - offset
         z = -z if self.vfp_attrs.orientation == "back" else z
         slds = self.get_slds(reduced=reduced)
         # conditionally remove z at indices.
         if reduced:
-            delete_idx = transform_indices(self.indices)
+            delete_idx = transform_indices(self.vfp_attrs.indices)
             z = np.delete(z, delete_idx)
         return z, slds.T
 
@@ -399,7 +550,7 @@ class BaseVFP(ABC):
             # backing roughness. zend_of_vfprofile replicates the 4 *
             # backing roughness part. Then 5 + last microslice thickness
             # covers the -5 + last slab location part.
-            zend_front = self.dz[-1] + zend_of_vfprofile
+            zend_front = self.vfp_attrs.dz[-1] + zend_of_vfprofile
             sldprof_offset = -(zend_front - np.sum(self.vfp_attrs.tup_thicks))
 
         return sldprof_offset
@@ -497,28 +648,6 @@ class BaseVFP(ABC):
 
         return fig, ax
 
-    def _arrtotuple(
-        self, arr: np.ndarray
-    ) -> tuple[float, ...] | tuple[tuple[float, ...], ...]:
-        """
-        Convert arrays to tuples for caching.
-
-        Parameters
-        ----------
-        arr : np.ndarray
-            Array to convert to tuples.
-
-        Returns
-        -------
-        tuple[float, ...] | tuple[tuple[float, ...], ...]
-            tuple or nested tuple of floats.
-        """
-        if arr.ndim == 1:
-            return tuple(val for val in arr)
-
-        elif arr.ndim == 2:  # noqa : PLR2004
-            return tuple([tuple([float(val) for val in row]) for row in arr])
-
     def _init_vfp_attrs(
         self,
         arr_attrs: list[
@@ -527,7 +656,7 @@ class BaseVFP(ABC):
         other_attrs: list[
             Literal["front", "back"],
             Literal["none", "up", "down"],
-            SLDConstraintType | None,
+            SldConstraintType | None,
             float,
         ],
         name: str,
@@ -567,59 +696,6 @@ class BaseVFP(ABC):
             name=name,
         )
         return attrs
-
-    @property
-    def zeds(self) -> tuple[float, ...]:
-        "z space of total interface."
-        zeds = calc_zeds(
-            self.vfp_attrs.tup_roughs,
-            self.vfp_attrs.tup_thicks,
-            self.vfp_attrs.max_delta_z,
-        )
-        return self._arrtotuple(zeds)
-
-    @property
-    def dz(self) -> np.ndarray:
-        """The thickness of each microslab.
-
-        When orientation == back, microslabs will have same thicknesses
-        as orientation == back, just in reverse order.
-        """
-        zds = self.zeds  # avoid calling the property more than once.
-        dzs = calc_dzs(zds[0], zds[-1], len(zds), self.indices)
-        # when orientation = back, slabs will have same thickness as front,
-        # just in reverse order
-        if self.vfp_attrs.orientation == "back":
-            dzs = dzs[::-1]
-        return dzs
-
-    @property
-    def vfp(self) -> tuple[tuple[float, ...], ...]:
-        "Non-reduced layer volume fraction profile."
-        vfp = calc_vfp(
-            self.vfp_attrs.tup_roughs,
-            self.vfp_attrs.tup_thicks,
-            self.zeds,
-            tuple(self.vfp_attrs.conformal),
-        )
-        return self._arrtotuple(vfp)
-
-    @property
-    def demag_arr(self) -> tuple[tuple[float, ...], ...]:
-        "Non-reduced magnetic demagnetisation of each layer."
-        demag_arr = calc_demag_array(
-            self.vfp_attrs.tup_demag_locs,
-            self.vfp_attrs.tup_demag_widths,
-            self.vfp_attrs.tup_mslds,
-            self.zeds,
-        )
-        return self._arrtotuple(demag_arr)
-
-    @property
-    def indices(self) -> tuple[int, ...]:
-        "Indices of where vfp is ~ invariant with next neighbouring point."
-        idx = calc_indices(self.vfp, self.demag_arr)
-        return self._arrtotuple(idx)
 
     @property
     @abstractmethod
