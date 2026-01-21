@@ -10,7 +10,7 @@ import numpy as np
 
 # this package
 from vfp.basevfp import BaseVFP, VFPAttributes, check_init_input
-from vfp.vfp_typing import ParameterLike, SLDConstraintType
+from vfp.vfp_typing import ParameterLike, SldConstraintType
 
 HAS_REFL1D = False
 # Likely to change as bumps / refl1d are going through api refactor.
@@ -100,7 +100,7 @@ class VFP(BaseVFP):
         If supplied, must either be a tuple/list of an even number of
         ParameterLike objects. The parameters declare the width of a Gaussian
         CDF. Optional, defaults to None.
-    sld_constraint : SLDConstraintType | None
+    sld_constraint : SldConstraintType | None
         User defined object used to handle SLD constraints between layers.
         Optional, defaults to None.
     max_delta_z : float
@@ -119,7 +119,7 @@ class VFP(BaseVFP):
         orientation: Literal["front", "back"] = "front",
         demaglocs: None | tuple[ParameterLike] | list[ParameterLike] = None,
         demagwidths: None | tuple[ParameterLike] | list[ParameterLike] = None,
-        sld_constraint: SLDConstraintType | None = None,
+        sld_constraint: SldConstraintType | None = None,
         max_delta_z: float = 0.5,
     ) -> None:
         self.name = "VFP"
@@ -168,7 +168,7 @@ class VFP(BaseVFP):
         cls,
         vfp_attrs: dict[
             str,
-            np.ndarray | str | float | None | SLDConstraintType,
+            np.ndarray | str | float | None | SldConstraintType,
         ],
     ) -> VFP:
         """
@@ -177,7 +177,7 @@ class VFP(BaseVFP):
         Parameters
         ----------
         vfp_attrs : dict[str, np.ndarray | str | float | None
-                              | SLDConstraintType]
+                              | SldConstraintType]
             Original vfp attributes.
 
         Returns
@@ -276,7 +276,7 @@ if HAS_REFNX:
             demagwidths: (
                 None | tuple[ParameterLike] | list[ParameterLike]
             ) = None,
-            sld_constraint: SLDConstraintType | None = None,
+            sld_constraint: SldConstraintType | None = None,
             max_delta_z: float = 0.5,
         ) -> None:
             self.name = "refnxVFP"
@@ -509,7 +509,7 @@ if HAS_REFNX:
             cls,
             vfp_attrs: dict[
                 str,
-                np.ndarray | str | float | None | SLDConstraintType,
+                np.ndarray | str | float | None | SldConstraintType,
             ],
         ) -> refnxVFP:
             """
@@ -518,7 +518,7 @@ if HAS_REFNX:
             Parameters
             ----------
             vfp_attrs : dict[str, np.ndarray | str | float | None
-                                | SLDConstraintType]
+                                | SldConstraintType]
                 Original vfp attributes.
 
             Returns
@@ -707,7 +707,7 @@ if HAS_REFL1D:
             demagwidths: (
                 None | tuple[ParameterLike] | list[ParameterLike]
             ) = None,
-            sld_constraint: SLDConstraintType | None = None,
+            sld_constraint: SldConstraintType | None = None,
             max_delta_z: float = 0.5,
         ) -> None:
             self.name = "refl1dVFP"
@@ -928,7 +928,7 @@ if HAS_REFL1D:
             cls,
             vfp_attrs: dict[
                 str,
-                np.ndarray | str | float | None | SLDConstraintType,
+                np.ndarray | str | float | None | SldConstraintType,
             ],
         ) -> refl1dVFP:
             """
@@ -937,7 +937,7 @@ if HAS_REFL1D:
             Parameters
             ----------
             vfp_attrs : dict[str, np.ndarray | str | float | None
-                                | SLDConstraintType]
+                                | SldConstraintType]
                 Original vfp attributes.
 
             Returns
@@ -1131,7 +1131,7 @@ def init_specific_vfp(
     vfp_type: Literal["vfp", "refnx", "refl1d"],
     vfp_dict: dict[
         str,
-        np.ndarray | str | float | None | SLDConstraintType,
+        np.ndarray | str | float | None | SldConstraintType,
     ],
 ) -> VFP | refnxVFP | refl1dVFP:
     """
@@ -1145,7 +1145,7 @@ def init_specific_vfp(
         The original vfp to transform to a different type of VFP.
     vfp_type : str
         Type of the desired VFP type.
-    vfp_dict : dict[str, np.ndarray | str | float | None | SLDConstraintType]
+    vfp_dict : dict[str, np.ndarray | str | float | None | SldConstraintType]
         Original VFP attributes as a dictionary
 
     Returns

@@ -41,8 +41,8 @@ except ImportError as ie:  # if we don't have bumps, try refnx.
         print(f"{ie} compatible refnx package not installed.")
 
 
-# define a type for user defined SLDConstraints to follow.
-class SLDConstraintType(Protocol):
+# define a type for user defined SldConstraints to follow.
+class SldConstraintType(Protocol):
     def __init__(self, required_pars: dict[str, ParameterLike]) -> None: ...
     def layer_choices(self) -> list[int]: ...
     def __call__(
