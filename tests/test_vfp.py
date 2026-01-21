@@ -274,14 +274,16 @@ def test_vfps_vfp(
     )
 
     # check vfp types are same
-    np.testing.assert_allclose(vfp.vfp, refnx_vfp.vfp)
-    np.testing.assert_allclose(vfp.vfp, refl1d_vfp.vfp)
-    np.testing.assert_allclose(refnx_vfp.vfp, refl1d_vfp.vfp)
+    np.testing.assert_allclose(vfp.vfp_attrs.vfp, refnx_vfp.vfp_attrs.vfp)
+    np.testing.assert_allclose(vfp.vfp_attrs.vfp, refl1d_vfp.vfp_attrs.vfp)
+    np.testing.assert_allclose(
+        refnx_vfp.vfp_attrs.vfp, refl1d_vfp.vfp_attrs.vfp
+    )
 
     vfps: list[BaseVFP] = [vfp, refnx_vfp, refl1d_vfp]
     # check vfp attr is the same expected result
     for v in vfps:
-        np.testing.assert_allclose(v.vfp, expected_result, atol=EPS)
+        np.testing.assert_allclose(v.vfp_attrs.vfp, expected_result, atol=EPS)
 
 
 start = -17  # -5 - (4 * 3) = -17
@@ -363,16 +365,18 @@ def test_changing_vfp(
     )
 
     # check vfp types are same
-    np.testing.assert_allclose(vfp.vfp, refnx_vfp.vfp)
-    np.testing.assert_allclose(vfp.vfp, refl1d_vfp.vfp)
-    np.testing.assert_allclose(refnx_vfp.vfp, refl1d_vfp.vfp)
+    np.testing.assert_allclose(vfp.vfp_attrs.vfp, refnx_vfp.vfp_attrs.vfp)
+    np.testing.assert_allclose(vfp.vfp_attrs.vfp, refl1d_vfp.vfp_attrs.vfp)
+    np.testing.assert_allclose(
+        refnx_vfp.vfp_attrs.vfp, refl1d_vfp.vfp_attrs.vfp
+    )
 
     vfps: list[BaseVFP] = [vfp, refnx_vfp, refl1d_vfp]
     for v in vfps:
         v.vfp_attrs.thicknesses = change_thicknesses
     # check vfp attr is the same expected result
     for v in vfps:
-        np.testing.assert_allclose(v.vfp, expected_result, atol=EPS)
+        np.testing.assert_allclose(v.vfp_attrs.vfp, expected_result, atol=EPS)
 
 
 # test orientation option gives correct SLD profile for simple model
@@ -991,55 +995,3 @@ def test_tuple_pars(  # noqa : PLR0913
         np.testing.assert_allclose(
             v.vfp_attrs.tup_demag_locs, expected_result[4], atol=EPS
         )
-
-
-@pytest.mark.parametrize(
-    "nslds, thicknesses, roughnesses, tuple_input, expected_result",
-    [
-        pytest.param(
-            nslds,
-            thicknesses,
-            roughnesses,
-            np.array([0, 20, 30]),
-            (0, 20, 30),
-            id="First arrtotuple test",
-        ),
-        pytest.param(
-            nslds,
-            thicknesses,
-            roughnesses,
-            np.array(
-                [[2.07, 3.47, 0.2, 6.7], [0, 1, 0, 0], [3e-6, 2e-6, 1e-6, 0]]
-            ),
-            ((2.07, 3.47, 0.2, 6.7), (0, 1, 0, 0), (3e-6, 2e-6, 1e-6, 0)),
-            id="Second arrtotuple test",
-        ),
-    ],
-)
-def test_arrtotuple(
-    nslds: list,
-    thicknesses: list,
-    roughnesses: list,
-    tuple_input,
-    expected_result: tuple,
-):
-    vfp_kwargs = locals()
-    del vfp_kwargs["expected_result"]
-    del vfp_kwargs["tuple_input"]
-
-    vfp = VFP(**vfp_kwargs)
-    refnx_vfp = refnxVFP(**vfp_kwargs)
-    refl1d_vfp = refl1dVFP(**vfp_kwargs)
-
-    vfp_tup = vfp._arrtotuple(tuple_input)
-    refnx_tup = refnx_vfp._arrtotuple(tuple_input)
-    refl1d_tup = refl1d_vfp._arrtotuple(tuple_input)
-
-    assert_allclose = partial(
-        np.testing.assert_allclose, desired=expected_result, atol=EPS
-    )
-
-    map(
-        assert_allclose,
-        [vfp_tup, refnx_tup, refl1d_tup],
-    )

@@ -4,6 +4,7 @@ import scipy
 from numpy.testing import assert_allclose
 
 from vfp.calc import (
+    arr_to_tuple,
     calc_demag_array,
     calc_dzs,
     calc_indices,
@@ -587,3 +588,28 @@ def test_reduce_vfp_and_magcomp(
     # as this example has no deviation in demag_arr from 1,
     # magcomp will be equal to vfp.
     assert_allclose(reduced_magcomp_output, expected_result)
+
+
+@pytest.mark.parametrize(
+    "tuple_input, expected_result",
+    [
+        pytest.param(
+            np.array([0, 20, 30]),
+            (0, 20, 30),
+            id="First arrtotuple test",
+        ),
+        pytest.param(
+            np.array(
+                [[2.07, 3.47, 0.2, 6.7], [0, 1, 0, 0], [3e-6, 2e-6, 1e-6, 0]]
+            ),
+            ((2.07, 3.47, 0.2, 6.7), (0, 1, 0, 0), (3e-6, 2e-6, 1e-6, 0)),
+            id="Second arrtotuple test",
+        ),
+    ],
+)
+def test_arr_to_tuple(
+    tuple_input,
+    expected_result: tuple,
+):
+    out = arr_to_tuple(tuple_input)
+    np.testing.assert_allclose(out, desired=expected_result)
