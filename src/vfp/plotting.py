@@ -811,7 +811,11 @@ def _gen_sld_profile(
     av_slds = av_slds * mid_slds
     # get z and dzs same orientation as front.
     z = -z if vfp.vfp_attrs.orientation == "back" else z
-    dzs = vfp.dz[::-1] if vfp.vfp_attrs.orientation == "back" else vfp.dz
+    dzs = (
+        vfp.vfp_attrs.dz[::-1]
+        if vfp.vfp_attrs.orientation == "back"
+        else vfp.vfp_attrs.dz
+    )
     reconstruc_zeds = np.ones(shape=(dzs.size + 1)) * z[0]
     reconstruc_zeds[1:] += np.cumsum(dzs)
     multiplier = 1
