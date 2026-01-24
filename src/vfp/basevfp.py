@@ -13,6 +13,7 @@ from matplotlib.figure import Figure
 
 # this package
 from vfp.calc import (
+    arr_to_tuple,
     calc_demag_array,
     calc_dzs,
     calc_indices,
@@ -392,7 +393,7 @@ class BaseVFP(ABC):
             integrals = integrate_vfp(
                 self.vfp_attrs.zeds,
                 self.vfp_attrs.indices,
-                self.vfp_attrs.vfp,
+                arr_to_tuple(p_vfp),
                 tuple(layer_indices),
             )
             # user defines a class with a callable, which returns a list of
