@@ -58,16 +58,21 @@ class VFPAttributes:
     _zeds_dependents: dict[str, tuple[float, ...]] = field(
         init=False, default_factory=dict, repr=False
     )
-    "State of thicknesses, roughnesses when previous zeds value cached."
+    "thicknesses and roughnesses when `calc_zeds` last called."
     _vfp_dependents: dict[str, tuple[float, ...]] = field(
         init=False, default_factory=dict, repr=False
     )
+    "thicknesses and roughnesses when `calc_vfp` last called."
     _indices_dependents: dict[str, tuple[float, ...]] = field(
         init=False, default_factory=dict, repr=False
     )
+    """Thickness, roughnesses, demag_locs, demag_widths and
+    mslds when `calc_indices` last called."""
     _demag_arr_dependents: dict[str, tuple[float, ...]] = field(
         init=False, default_factory=dict, repr=False
     )
+    """Thickness, roughnesses, demag_locs, demag_widths and
+    mslds when `calc_demag_array` last called."""
     _cached_zeds: tuple[float, ...] = field(
         init=False, default=None, repr=False
     )
