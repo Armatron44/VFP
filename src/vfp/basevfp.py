@@ -401,9 +401,36 @@ class BaseVFP(ABC):
                 arr_to_tuple(p_vfp),
                 tuple(layer_indices),
             )
-            # user defines a class with a callable, which returns a list of
-            # indices for modifying SLD values at those idxs.
-            layer_idxs, slds = self.vfp_attrs.sld_constraint(integrals)
+            # user defines a class with a callable, this should return a tuple
+            # of two lists or tuples. The first is the indices at which SLD
+            # values will be modified, and the second is the sld values to
+            # change to.
+            sld_const_res = self.vfp_attrs.sld_constraint(integrals)
+            # check user has defined the return to be of the right type.
+            if not all([isinstance(x, tuple | list) for x in sld_const_res]):
+                raise TypeError(
+                    "Expected the __call__ function of sld_constraint to"
+                    " return a tuple of two tuple or lists. Got"
+                    f" {type(sld_const_res[0])} and {type(sld_const_res[1])}"
+                )
+            layer_idxs, slds = sld_const_res
+            # now check each value in both tuple / lists have right type.
+            if not all([isinstance(idx, int) for idx in layer_idxs]):
+                raise TypeError(
+                    "Expected the first return value in sld_constraint"
+                    " __call__ to contain only int. Got these types:"
+                    f" {set([type(idx) for idx in layer_idxs])}."
+                )
+            # can't use ParameterLike in isinstance. The __value__ gives the
+            # union of all types which should be what we want. Not pretty.
+            if not all(
+                [isinstance(sld, ParameterLike.__value__) for sld in slds]
+            ):
+                raise TypeError(
+                    "Expected the second return value in sld_constraint"
+                    " __call__ to contain only ParameterLike. Got these:"
+                    f" {set([type(sld) for sld in slds])}."
+                )
             for layer_idx, sld in zip(layer_idxs, slds, strict=True):
                 self.vfp_attrs.nslds[layer_idx] = sld  # update
 

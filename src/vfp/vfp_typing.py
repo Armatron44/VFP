@@ -44,10 +44,13 @@ except ImportError as ie:  # if we don't have bumps, try refnx.
 # define a type for user defined SldConstraints to follow.
 class SldConstraintType(Protocol):
     def __init__(self, required_pars: dict[str, ParameterLike]) -> None: ...
-    def layer_choices(self) -> list[int]: ...
+    def layer_choices(self) -> list[int] | tuple[int, ...]: ...
     def __call__(
-        self, layer_integrals: list[float]
-    ) -> tuple[list[int], list[float]]: ...
+        self, layer_integrals: list[float] | tuple[float, ...]
+    ) -> tuple[
+        list[int] | tuple[int, ...],
+        list[ParameterLike] | tuple[ParameterLike, ...],
+    ]: ...
 
 
 class LayerMaterialFraction(TypedDict):
