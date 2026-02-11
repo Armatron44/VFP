@@ -35,10 +35,7 @@ def consecutive(arr: np.ndarray) -> list[np.ndarray]:
     >>> consecutive(idxs)
     [array([1, 2, 3]), array([5, 6])]
     """
-    if arr.size > 1:
-        return np.split(arr, (np.diff(arr) != 1).nonzero()[0] + 1)
-    else:
-        return [arr]
+    return np.split(arr, (np.diff(arr) != 1).nonzero()[0] + 1)
 
 
 @lru_cache(maxsize=2)
