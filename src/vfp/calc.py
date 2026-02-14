@@ -35,6 +35,13 @@ def consecutive(arr: np.ndarray) -> list[np.ndarray]:
     >>> consecutive(idxs)
     [array([1, 2, 3]), array([5, 6])]
     """
+    if not isinstance(arr, np.ndarray):
+        raise TypeError(f"arr must be a np.ndarray. Got type = {type(arr)}.")
+    if arr.ndim != 1:
+        raise ValueError(
+            "Number of dimensions of arr must be 1. Got array with"
+            f" {arr.ndim} dimensions."
+        )
     return np.split(arr, (np.diff(arr) != 1).nonzero()[0] + 1)
 
 
@@ -556,7 +563,6 @@ def integrate_vfp(
         )  # get zed values to integrate over.
     else:
         integrate_over = zs
-
     integrals = []
     for lidx in layer_indices:
         layer_integral = scipy.integrate.simpson(
