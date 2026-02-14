@@ -1,3 +1,5 @@
+from contextlib import nullcontext
+
 import numpy as np
 import pytest
 import scipy
@@ -25,23 +27,36 @@ from vfp.calc import (
     [
         pytest.param(
             np.array([1, 2, 3, 5, 6, 7]),
-            [np.array([1, 2, 3]), np.array([5, 6, 7])],
+            nullcontext([np.array([1, 2, 3]), np.array([5, 6, 7])]),
             id="First consecutive test.",
         ),
         pytest.param(
             np.array([100, 101, 105, 106, 200, 201]),
-            [
-                np.array([100, 101]),
-                np.array([105, 106]),
-                np.array([200, 201]),
-            ],
+            nullcontext(
+                [
+                    np.array([100, 101]),
+                    np.array([105, 106]),
+                    np.array([200, 201]),
+                ]
+            ),
             id="Second consecutive test.",
+        ),
+        pytest.param(
+            np.random.default_rng().normal(size=(3, 100)),
+            pytest.raises(ValueError),
+            id="Third consecutive test, ValueError.",
+        ),
+        pytest.param(
+            np.random.default_rng().integers(low=1, high=10, size=1).item(),
+            pytest.raises(TypeError),
+            id="Fourth consecutive test, TypeError.",
         ),
     ],
 )
 def test_consecutive(array, expected_result):
-    consec_list = consecutive(array)
-    assert_allclose(consec_list, expected_result)
+    with expected_result as e:
+        consec_list = consecutive(array)
+        assert_allclose(consec_list, e)
 
 
 calc_dz_eo_first = np.ones(303 - 7) * 0.5
@@ -398,7 +413,7 @@ def test_get_demag(
 
 
 @pytest.mark.parametrize(
-    "zed, peaks, layer_indices, expected_result",
+    "zed, peaks, indices, layer_indices, expected_result",
     [
         pytest.param(
             np.linspace(-10, 10, 10001),
@@ -407,9 +422,30 @@ def test_get_demag(
                     np.linspace(-10, 10, 10001), a=4, loc=0, scale=1
                 ),
             ),
+            (),
             (0,),
-            (1,),
+            nullcontext((1,)),
             id="First test_integrate_test.",
+        ),
+        pytest.param(
+            np.linspace(-10, 10, 10001),
+            (
+                scipy.stats.norm.pdf(
+                    np.delete(np.linspace(-10, 10, 10001), np.array([5, 6])),
+                    loc=0,
+                    scale=1,
+                ),
+                4
+                * scipy.stats.norm.pdf(
+                    np.delete(np.linspace(-10, 10, 10001), np.array([5, 6])),
+                    loc=0,
+                    scale=1,
+                ),
+            ),
+            (4, 5, 6),
+            (0, 1),
+            nullcontext((1, 4)),
+            id="Second test_integrate_test.",
         ),
         pytest.param(
             np.linspace(-10, 10, 10001),
@@ -422,25 +458,31 @@ def test_get_demag(
                     np.linspace(-10, 10, 10001), loc=0, scale=1
                 ),
             ),
-            (0, 1),
-            (1, 4),
-            id="Second test_integrate_test.",
+            (),
+            (),
+            pytest.raises(ValueError),
+            id="Third test_integrate_test.",
         ),
     ],
 )
 def test_integrate_vfp(
     zed: np.ndarray,
     peaks: tuple[np.ndarray, ...],
+    indices: tuple[int, ...],
     layer_indices: tuple[int, ...],
     expected_result: tuple[float, ...],
 ) -> None:
     vfps = np.vstack(peaks)
     vfps = tuple(tuple(i) for i in vfps)
-    res_list = integrate_vfp(
-        zeds=tuple(zed), indexs=(), red_vfps=vfps, layer_indices=layer_indices
-    )
-    for res, expec in zip(res_list, expected_result, strict=False):
-        assert_allclose(res, expec)
+    with expected_result as e:
+        res_list = integrate_vfp(
+            zeds=tuple(zed),
+            indexs=indices,
+            red_vfps=vfps,
+            layer_indices=layer_indices,
+        )
+        for res, expec in zip(res_list, e, strict=False):
+            assert_allclose(res, expec)
 
 
 expected_result_heaviside_1 = np.zeros_like(np.linspace(-10, 10, 201))
