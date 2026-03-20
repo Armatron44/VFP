@@ -73,4 +73,4 @@ class VfpPlotKwargType(TypedDict, total=False):
 class SurfacePlotKwargType(TypedDict, total=False):
     surface_points: int
     surface_rng: np.random.Generator
-    colours: tuple[tuple[float, float, float], ...]
+    surface_colours: tuple[tuple[float, float, float], ...]

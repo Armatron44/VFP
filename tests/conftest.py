@@ -210,7 +210,10 @@ def plot_kwargs(posterior_samples_setup, materials_by_layer_setup):
         },
         {
             "plots_required": ["sld", "vfp"],
-            "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
+            "vfp_plot_kwargs": {
+                "layer_materials": materials_by_layer,
+                "labels": ["front", "lay1"],
+            },
             "sld_plot_kwargs": {"microslice": False, "total_sld": False},
         },
         {"plots_required": ["vfp"], "posterior_samples": None},

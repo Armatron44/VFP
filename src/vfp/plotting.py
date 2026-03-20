@@ -31,6 +31,18 @@ class PlotType(StrEnum):
     VFP = "vfp"
     SURFACES = "surfaces"
 
+    def plot(self, *args, **kwargs) -> None:
+        """Wraps specific plot functions depending on PlotType."""
+        kw = kwargs[self]
+        kw = kw if kw is not None else {}
+        match self:
+            case PlotType.SLD:
+                self._plot_sld(*args, **kw)
+            case PlotType.VFP:
+                self._plot_vfp(*args, **kw)
+            case PlotType.SURFACES:
+                self._plot_surfaces(*args, **kw)
+
     def _plot_sld(  # noqa : PLR0913
         self,
         ax: Axes,
@@ -279,7 +291,7 @@ class PlotType(StrEnum):
         *,
         surface_points: int = 50,
         surface_rng: np.random.Generator | None = None,
-        colours: tuple[tuple[float, float, float], ...] | None = None,
+        surface_colours: tuple[tuple[float, float, float], ...] | None = None,
     ) -> None:
         """
         Plots a stochastic simulation of layers.
@@ -303,8 +315,8 @@ class PlotType(StrEnum):
             modelled distribution. If supplied, will generate deterministic
             draws so that the results are repeatable. If not supplied, a
             random seed will be set when calling this function.
-        colours : tuple[tuple[float, float, float], ...] | None, optional
-            Colours to plot. Defaults to tab20
+        surface_colours : tuple[tuple[float, float, float], ...] | None,
+            Optional. Colours to plot. Defaults to tab20.
         """
         surface_rng = (
             surface_rng
@@ -324,8 +336,8 @@ class PlotType(StrEnum):
         # get default colours if non specified.
         colours = (
             matplotlib.colormaps["tab20"].colors
-            if colours is None
-            else colours
+            if surface_colours is None
+            else surface_colours
         )
         # reverse and select for fill + points.
         points_colours = colours[: 2 * n_interf + 1 : 2]
@@ -401,18 +413,6 @@ class PlotType(StrEnum):
             ax.spines[border].set_zorder(
                 (len(vfp.vfp_attrs.tup_thicks) + 1) * 3
             )  # borders will be higher than surfaces and fills.
-
-    def plot(self, *args, **kwargs) -> None:
-        """
-        Wraps specific plot functions depending on PlotType.
-        """
-        plot_func = plot_dispatch.get(self)
-        if plot_func is not None:
-            plot_func(self, *args, **kwargs)
-        else:
-            raise NotImplementedError(
-                f"Plot function for {self.value} not implemented."
-            )
 
     def _calc_xlims(self, z: np.ndarray) -> tuple[float, float]:
         """
@@ -502,14 +502,6 @@ class PlotType(StrEnum):
         return new_vfs, unique_materials
 
 
-# create a map of PlotType members to plot fns in PlotType.
-plot_dispatch = {
-    PlotType.SLD: PlotType._plot_sld,
-    PlotType.VFP: PlotType._plot_vfp,
-    PlotType.SURFACES: PlotType._plot_surfaces,
-}
-
-
 class AxesIndex(IntEnum):
     """
     Defines index of multiple axes.
@@ -543,7 +535,12 @@ class AxesIndex(IntEnum):
         return self._plot_type
 
     @plot_type.setter
-    def plot_type(self, value: PlotType):
+    def plot_type(self, value: PlotType) -> None:
+        if not isinstance(value, PlotType):
+            raise TypeError(
+                "Can only set AxesIndex.plot_type to a PlotType."
+                f" Got {type(value)}."
+            )
         self._plot_type = value
 
     @classmethod
@@ -694,6 +691,11 @@ def model_plot(  # noqa: PLR0913
     # get original vfp varying_parameter values
     original_ps = copy.deepcopy(vfp.varying_parameters)
 
+    all_plot_kwargs = {
+        PlotType.SLD: sld_plot_kwargs,
+        PlotType.VFP: vfp_plot_kwargs,
+        PlotType.SURFACES: surface_plot_kwargs,
+    }
     # setup fig & axes.
     if fig is None:
         fig, _ = plt.subplots(
@@ -704,20 +706,17 @@ def model_plot(  # noqa: PLR0913
         )
 
     else:
-        for i in range(len(plots_required)):
-            fig.add_subplot(len(plots_required), 1, i)
+        ax_bottom = fig.add_subplot(
+            len(plots_required), 1, len(plots_required)
+        )
+        for i in range(1, len(plots_required)):
+            ax = fig.add_subplot(len(plots_required), 1, i, sharex=ax_bottom)
+            ax.tick_params(labelbottom=False)
 
     # get ax this way so that its a flat list for 1 or multiple axes.
-    ax = fig.axes
+    # sorted by the vertical position of the axis in the plot (top to bottom).
+    ax = sorted(fig.axes, key=lambda ax: ax.get_subplotspec().rowspan.start)
 
-    # create map for kwargs that can be passed to plot_type.plot.
-    kwarg_map: dict[
-        PlotType, SldPlotKwargType | VfpPlotKwargType | SurfacePlotKwargType
-    ] = {
-        PlotType.SLD: sld_plot_kwargs,
-        PlotType.VFP: vfp_plot_kwargs,
-        PlotType.SURFACES: surface_plot_kwargs,
-    }
     get_sld_axtwinx_fn = setup_axtwinx_cache()
 
     # plot posterior samples:
@@ -743,9 +742,7 @@ def model_plot(  # noqa: PLR0913
                 if axis.plot_type == PlotType.SURFACES:
                     continue
                 plot_args = plot_fn_args_map_posterior.get(axis.plot_type)
-                plot_kwargs = kwarg_map.get(axis.plot_type)
-                plot_kwargs = plot_kwargs if plot_kwargs is not None else {}
-                axis.plot_type.plot(ax[axis], *plot_args, **plot_kwargs)
+                axis.plot_type.plot(ax[axis], *plot_args, **all_plot_kwargs)
 
     # plot main profiles.
     if vfp.varying_parameters is not None:
@@ -758,9 +755,7 @@ def model_plot(  # noqa: PLR0913
 
     for axis in axes_enum:
         plot_args = plot_fn_args_map.get(axis.plot_type)
-        plot_kwargs = kwarg_map.get(axis.plot_type)
-        plot_kwargs = plot_kwargs if plot_kwargs is not None else {}
-        axis.plot_type.plot(ax[axis], *plot_args, **plot_kwargs)
+        axis.plot_type.plot(ax[axis], *plot_args, **all_plot_kwargs)
 
     ax[-1].set_xlabel(r"Distance over Interface / $\mathrm{\AA{}}$")
     return fig, ax
