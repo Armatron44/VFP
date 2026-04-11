@@ -1,13 +1,12 @@
 """Types for use with vfp package."""
 
-from dataclasses import dataclass
 from typing import (
-    TYPE_CHECKING,
-    Any,
     Literal,
     NotRequired,
     Protocol,
+    TypeAliasType,
     TypedDict,
+    get_args,
 )
 
 import numpy as np
@@ -18,18 +17,24 @@ dependencies to ``vfp``. ``ParameterLike`` is the union of ``float``, ``int``,
 ``refnx.analysis.Parameter``, ``refnx.analysis.parameter._BinaryOp``,
 ``bumps.parameter.Parameter`` & ``bumps.parameter.Expression``
 """
-if TYPE_CHECKING:
+try:
     from bumps.parameter import Expression as bumpsExpr
     from bumps.parameter import Parameter as bumpsParam
+
+    type bumpsparameters = bumpsExpr | bumpsParam
+except ImportError as ie:
+    print(f"{ie} refl1d & bumps packages not installed.")
+    type bumpsparameter = float | int
+try:
     from refnx.analysis import Parameter as refnxParam
     from refnx.analysis.parameter import _BinaryOp as refnxOp
-else:
-    # at run time define as Any and validate within classes.
-    bumpsexpr = bumpsparam = refnxparam = refnxop = Any
 
-type ParameterLike = (
-    int | float | bumpsParam | bumpsExpr | refnxParam | refnxOp
-)
+    type refnxparameters = refnxParam | refnxOp
+except ImportError as ie:
+    print(f"{ie} refnx packages not installed.")
+    type refnxparameters = float | int
+
+type ParameterLike = (float | int | bumpsparameters | refnxparameters)
 
 type VFPAttrType = dict[
     str,
@@ -77,16 +82,6 @@ class SldConstraintType(Protocol):
         ...
 
 
-@dataclass
-class LayerMaterialFraction:
-    """The volume fraction of a particular material in a particular layer."""
-
-    name: str
-    """Name of material within layer."""
-    volume_fraction: ParameterLike
-    """Volume fraction of material in the layer."""
-
-
 class SldPlotKwargType(TypedDict):
     """Kwargs to be passed to ``plotting.PlotType._plot_sld``."""
 
@@ -102,12 +97,12 @@ class SldPlotKwargType(TypedDict):
 class VfpPlotKwargType(TypedDict, total=False):
     """Kwargs to be passed to ``plotting.PlotType._plot_vfp``."""
 
-    layer_materials: NotRequired[dict[int, LayerMaterialFraction]]
+    layer_materials: NotRequired[dict[int, dict[str, ParameterLike]]]
     """Each key is the layer number (e.g fronting = 0), while the value should
-    be a ``LayerMaterialFraction`` dict, where the keys are the material
-    names, and values are ``ParameterLike`` (float, int, refnxParameter,
-    BumpsParameter). The material names are used as labels, and will overwrite
-    the `labels` kwarg."""
+    be a dictionary. The nested dictionary should have keys that are the
+    layers' material name and values that are material volume fraction. All
+    keys in the nested dictionaries are used as labels, and will
+    overwrite the ``labels`` kwarg in ``VfpPlotKwargType``."""
     colours: NotRequired[tuple[tuple[float, float, float], ...]]
     """Colours to plot vfp profile. Posterior samples are plotted in every
     second colour, while the nominal profile of each layer is plotted in every
@@ -133,3 +128,18 @@ class SurfacePlotKwargType(TypedDict):
     set when calling this function."""
     surface_colours: NotRequired[tuple[tuple[float, float, float], ...]]
     """Colours of interfaces."""
+
+
+def flatten_composite_type_alias(tp) -> set[type]:
+    """Recursively find all atomic types in a nested TypeAlias."""
+    if isinstance(tp, TypeAliasType):
+        return flatten_composite_type_alias(tp.__value__)
+    args = get_args(tp)
+    if not args:
+        return {tp}
+    # if a particular arg is itself a TypeAlias, we need to
+    # get the atomic types within it.
+    atoms = set()
+    for arg in args:
+        atoms.update(flatten_composite_type_alias(arg))
+    return atoms

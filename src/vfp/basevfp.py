@@ -1,10 +1,13 @@
+"""Methods for vfp shared by all types."""
+
 from __future__ import annotations
 
 # standard
 import warnings
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Self, TypeVar, cast
 
 # third party
 import numpy as np
@@ -29,95 +32,92 @@ from vfp.vfp_typing import (
     SldConstraintType,
     SldPlotKwargType,
     SurfacePlotKwargType,
+    VFPAttrType,
     VfpPlotKwargType,
+    flatten_composite_type_alias,
 )
+
+V = TypeVar("V", bound="BaseVFP")
+"""Type hint a generic subclass of ``BaseVFP``."""
 
 
 @dataclass
 class VFPAttributes:
-    """
-    Internal structure to hold parameters given to `vfp`s on input.
-    Used for internal vfp calculations, and not intended to be set
-    by user.
+    """Internal structure to hold parameters given to concrete ``BaseVFP``s.
+
+    Used for internal vfp calculations, and not intended to be set by user.
+    Caching here is used to avoid having to recalculate particular properties
+    during a call to ``BaseVFP.process_model``.
     """
 
-    nslds: np.ndarray
-    thicknesses: np.ndarray
-    roughnesses: np.ndarray
-    islds: np.ndarray
-    mslds: np.ndarray
+    nslds: np.typing.NDArray[np.float64]
+    thicknesses: np.typing.NDArray[np.float64]
+    roughnesses: np.typing.NDArray[np.float64]
+    islds: np.typing.NDArray[np.float64]
+    mslds: np.typing.NDArray[np.float64]
     spin_state: Literal["none", "up", "down"]
     orientation: Literal["front", "back"]
-    demaglocs: np.ndarray
-    demagwidths: np.ndarray
+    demaglocs: np.typing.NDArray[np.float64]
+    demagwidths: np.typing.NDArray[np.float64]
     sld_constraint: None | SldConstraintType
     max_delta_z: float
-    conformal: np.ndarray
+    conformal: np.typing.NDArray[np.float64]
     name: str
 
     _zeds_dependents: dict[str, tuple[float, ...]] = field(
-        init=False, default_factory=dict, repr=False
+        init=False, default_factory=dict[str, tuple[float, ...]], repr=False
     )
-    "thicknesses and roughnesses when `calc_zeds` last called."
+    """thicknesses and roughnesses when ``calc_zeds`` last called."""
     _vfp_dependents: dict[str, tuple[float, ...]] = field(
-        init=False, default_factory=dict, repr=False
+        init=False, default_factory=dict[str, tuple[float, ...]], repr=False
     )
-    "thicknesses and roughnesses when `calc_vfp` last called."
+    """thicknesses and roughnesses when ``calc_vfp`` last called."""
     _indices_dependents: dict[str, tuple[float, ...]] = field(
-        init=False, default_factory=dict, repr=False
+        init=False, default_factory=dict[str, tuple[float, ...]], repr=False
     )
-    """Thickness, roughnesses, demag_locs, demag_widths and
-    mslds when `calc_indices` last called."""
+    """Thickness, roughnesses, demag_locs, demag_widths and mslds when
+    ``calc_indices`` last called."""
     _demag_arr_dependents: dict[str, tuple[float, ...]] = field(
-        init=False, default_factory=dict, repr=False
+        init=False, default_factory=dict[str, tuple[float, ...]], repr=False
     )
-    """Thickness, roughnesses, demag_locs, demag_widths and
-    mslds when `calc_demag_array` last called."""
+    """Thickness, roughnesses, demag_locs, demag_widths and mslds when
+    ``calc_demag_array`` last called."""
     _cached_zeds: tuple[float, ...] = field(
-        init=False, default=None, repr=False
+        init=False, default_factory=tuple[float, ...], repr=False
     )
     _cached_vfp: tuple[tuple[float, ...], ...] = field(
-        init=False, default=None, repr=False
+        init=False, default_factory=tuple[tuple[float, ...], ...], repr=False
     )
     _cached_indices: tuple[int, ...] = field(
-        init=False, default=None, repr=False
+        init=False, default_factory=tuple[int, ...], repr=False
     )
     _cached_demag_arr: tuple[tuple[float, ...], ...] = field(
-        init=False, default=None, repr=False
+        init=False, default_factory=tuple[tuple[float, ...], ...], repr=False
     )
 
     @property
     def tup_thicks(self) -> tuple[float, ...]:
-        """
-        Tuple variant of `VFPAttributes.thicknesses` for caching.
-        """
+        """Tuple variant of ``VFPAttributes.thicknesses`` for caching."""
         return tuple(self.thicknesses.astype(float))
 
     @property
     def tup_mslds(self) -> tuple[float, ...]:
-        """
-        Tuple variant of `VFPAttributes.mslds` for caching.
-        """
+        """Tuple variant of ``VFPAttributes.mslds`` for caching."""
         return tuple(self.mslds.astype(float))
 
     @property
     def tup_demag_locs(self) -> tuple[float, ...]:
-        """
-        Tuple variant of `VFPAttributes.demaglocs` for caching.
-        """
+        """Tuple variant of ``VFPAttributes.demaglocs`` for caching."""
         return tuple(self.demaglocs.astype(float))
 
     @property
     def tup_demag_widths(self) -> tuple[float, ...]:
-        """
-        Tuple variant of `VFPAttributes.demagwidths` for caching.
-        """
+        """Tuple variant of ``VFPAttributes.demagwidths`` for caching."""
         return tuple(self.demagwidths.astype(float))
 
     @property
     def tup_roughs(self) -> tuple[float, ...]:
-        """
-        Tuple variant of `VFPAttributes.roughnesses` for caching.
+        """Tuple variant of ``VFPAttributes.roughnesses`` for caching.
 
         If a value in roughnesses is None, we set it to a dummy value of 1.
         This value is completely ignored during the vfp calculations, but
@@ -130,10 +130,10 @@ class VFPAttributes:
 
     @property
     def zeds(self) -> tuple[float, ...]:
-        """z space of total interface.
+        """Distance coordinate over total interface.
 
-        If already calculated for combination of `self.tup_thicks` and
-        `self.tup_roughs` will use cached value.
+        If already calculated for combination of ``self.tup_thicks`` and
+        ``self.tup_roughs`` will use cached value.
         """
         current_deps = (self.tup_thicks, self.tup_roughs)
         if current_deps == (
@@ -154,14 +154,14 @@ class VFPAttributes:
         return self._cached_zeds
 
     @property
-    def dz(self) -> np.ndarray:
+    def dz(self) -> np.typing.NDArray[np.float64]:
         """The thickness of each microslab.
 
         When orientation == back, microslabs will have same thicknesses
         as front, just in reverse order.
 
         This isn't cached as this is only ever called once per call to
-        `vfp.process_model`.
+        ``vfp.process_model``.
         """
         zds = self.zeds  # avoid calling the property more than once.
         dzs = calc_dzs(zds[0], zds[-1], len(zds), self.indices)
@@ -173,7 +173,7 @@ class VFPAttributes:
 
     @property
     def vfp(self) -> tuple[tuple[float, ...], ...]:
-        "Non-reduced layer volume fraction profile."
+        """Non-reduced layer volume fraction profile."""
         current_deps = (self.tup_thicks, self.tup_roughs)
         if current_deps == (
             self._vfp_dependents.get("tup_thicks"),
@@ -194,7 +194,7 @@ class VFPAttributes:
 
     @property
     def demag_arr(self) -> tuple[tuple[float, ...], ...]:
-        "Non-reduced magnetic demagnetisation of each layer."
+        """Non-reduced magnetic demagnetisation of each layer."""
         current_deps = (
             self.tup_thicks,
             self.tup_roughs,
@@ -227,7 +227,7 @@ class VFPAttributes:
 
     @property
     def indices(self) -> tuple[int, ...]:
-        "Indices of where vfp is ~ invariant with next neighbouring point."
+        """Indices where vfp is ~ invariant with next neighbouring point."""
         current_deps = (
             self.tup_thicks,
             self.tup_roughs,
@@ -255,17 +255,15 @@ class VFPAttributes:
 
 
 class BaseVFP(ABC):
-    """
-    Handles common functions of VFP.
+    """Base class of vfp classes in vfp.py.
 
-    `process_model` is the main function.
+    ``process_model`` is the main function.
     """
 
     def __repr__(self) -> str:
-        """
-        Simple string description of the VFP.
+        """Get string discription of the VFP.
 
-        Currently not called by `refnxVFP` or `refl1dVFP`.
+        Currently not called by ``refnxVFP`` or ``refl1dVFP``.
 
         Returns
         -------
@@ -287,10 +285,9 @@ class BaseVFP(ABC):
         return s
 
     def process_model(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Calculates the thickness and sld of microslices.
+        """Calculate the thickness and sld of microslices.
 
-        Main function of the `BaseVFP`. Calculates the length of the VFP,
+        Main function of ``BaseVFP``. Calculates the length of the VFP,
         the thicknesses of each microslice and calculates the sld of each
         microslice. Returns the coherent and imaginary sld values for
         each microslice and the thickness of each microslice given orientation
@@ -339,13 +336,12 @@ class BaseVFP(ABC):
         return return_slds, return_islds, self.vfp_attrs.dz
 
     def get_slds(self, reduced: bool = True) -> np.ndarray:
-        """
-        Calculate slds via generation of volume fraction profile.
+        """Calculate slds via generation of volume fraction profile.
 
         Initially, the vol fraction profile is calculated, then it is reduced
-        via `self.init_demag`. slds are calculated and then summed to give
-        a coherent slds (nuclear or nuclear +/- magnetic dependent on
-        `self.spin_state`) and imaginary slds.
+        via ``self.init_demag``. slds are calculated and then summed to give
+        coherent slds (nuclear or nuclear +/- magnetic dependent on
+        ``self.spin_state``) and imaginary slds.
 
         Parameters
         ----------
@@ -356,7 +352,7 @@ class BaseVFP(ABC):
         -------
         np.ndarray
             Three sld contributions across three rows as function of
-            `self.zeds`. Coherent sld, imaginary sld, magnetic sld.
+            ``self.zeds``. Coherent sld, imaginary sld, magnetic sld.
         """
         vfp = np.asarray(self.vfp_attrs.vfp)
         demag_arr = np.asarray(self.vfp_attrs.demag_arr)
@@ -373,8 +369,7 @@ class BaseVFP(ABC):
         p_vfp: np.ndarray,
         demag_vfp: np.ndarray,
     ) -> np.ndarray:
-        """
-        Calculates coherent and imaginary slds.
+        """Calculate coherent and imaginary slds.
 
         Slds are nuclear, imaginary and magnetic.
         Can be calculated with reduced or full VFP.
@@ -465,8 +460,7 @@ class BaseVFP(ABC):
     def vfs_for_display(
         self, reduced: bool = True
     ) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Get volume fraction profile for plotting.
+        """Get volume fraction profile for plotting.
 
         Parameters
         ----------
@@ -497,8 +491,7 @@ class BaseVFP(ABC):
     def z_and_sld(
         self, reduced: bool = True, align_at_interface: int = 0
     ) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Get z and sld values from vfp for plotting.
+        """Get z and sld values from vfp for plotting.
 
         Returns z values from `self.zeds` and also returns non-microsliced
         sld values from `self.get_slds` calculated from the VFP.
@@ -534,8 +527,7 @@ class BaseVFP(ABC):
         return z, slds.T
 
     def sld_offset(self) -> float:
-        """
-        Float to add to refnx or refl1d sld profile z coordinate.
+        """Get float to add to refnx or refl1d sld profile z coordinate.
 
         Returns
         -------
@@ -558,7 +550,6 @@ class BaseVFP(ABC):
         >>> plt.plot(z+refnx_vfp.sld_offset(), sld)
         >>> plt.show()
         """
-
         if self.vfp_attrs.orientation == "front":
             sldprof_offset_nr = -5 - (4 * self.vfp_attrs.tup_roughs[0])
             # round down like zstart
@@ -597,9 +588,8 @@ class BaseVFP(ABC):
         sld_plot_kwargs: SldPlotKwargType | None = None,
         vfp_plot_kwargs: VfpPlotKwargType | None = None,
         surface_plot_kwargs: SurfacePlotKwargType | None = None,
-    ) -> tuple[Figure, Axes | np.ndarray[Axes]]:
-        """
-        Makes a one to three axis figure to visualise the VFP model.
+    ) -> tuple[Figure, list[Axes]]:
+        """Make a one to three axis figure to visualise the VFP model.
 
         By default the order of the plots are:
             Top plot = nsld / msld / isld
@@ -683,10 +673,8 @@ class BaseVFP(ABC):
 
     def _init_vfp_attrs(
         self,
-        arr_attrs: list[
-            list[ParameterLike | None] | tuple[ParameterLike] | list[int]
-        ],
-        other_attrs: list[
+        arr_attrs: list[Sequence[ParameterLike | None]],
+        other_attrs: tuple[
             Literal["front", "back"],
             Literal["none", "up", "down"],
             SldConstraintType | None,
@@ -694,9 +682,7 @@ class BaseVFP(ABC):
         ],
         name: str,
     ) -> VFPAttributes:
-        """
-        Inits a `VFPAttributes` to hold reference to child VFP input
-        parameters.
+        """Init ``VFPAttributes`` to hold reference to VFP input parameters.
 
         Returns
         -------
@@ -733,75 +719,93 @@ class BaseVFP(ABC):
     @property
     @abstractmethod
     def vfp_attrs(self) -> VFPAttributes:
-        """
-        Abstract property to implement in a child of `BaseVFP` to use the
-        VFPAttribute dataclass.
-        """
+        """Get ``VFPAttributes`` attached to this vfp."""
         raise NotImplementedError
 
     @abstractmethod
-    def set_parameter_prior(self):
-        """
-        Abstract method to set priors on fitting parameters.
-        """
+    def set_parameter_prior(self, *args, **kwargs) -> None:
+        """Set priors on fitting parameters."""
         raise NotImplementedError
 
     @abstractmethod
-    def transform(self):
-        """
-        Abstract method to transform a VFP of one type to another.
-        """
+    def transform(
+        self, wanted_vfp: Literal["VFP", "refnxVFP", "refl1dVFP"]
+    ) -> V:
+        """Transform a VFP of one type to another."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def varying_parameters(self) -> dict[str, ParameterLike] | None:
-        """
-        Abstract method to get all varying parameters in vfp.
-        """
+    def varying_parameters(self) -> dict[str, ParameterLike]:
+        """Get all varying parameters in vfp."""
+        raise NotImplementedError
+
+    @varying_parameters.setter
+    @abstractmethod
+    def varying_parameters(
+        self, values_dict: dict[str, ParameterLike]
+    ) -> None:
+        """Set the values of the varying parameters."""
         raise NotImplementedError
 
     @abstractmethod
-    def _createparam(self):
-        """
-        Abstract method that should be implemented to return `ParameterLike`
-        objects for fitting software. Not required for standard VFP.
-
-        Raises
-        ------
-        NotImplementedError
-        """
+    def _createparam(
+        self, params: Sequence[ParameterLike | None], nameid: str
+    ) -> Sequence[ParameterLike | None]:
+        """Get ``ParameterLike``s for fitting software."""
         raise NotImplementedError
 
+    @classmethod
+    def from_transform(cls, vfp_attrs: VFPAttrType) -> Self:
+        """Transform a dictionary of vfp attributes to a ``VFP``.
 
-def check_init_input(  # noqa : PLR0912, PLR0913
-    thicknesses: tuple[ParameterLike] | list[ParameterLike],
-    roughnesses: tuple[ParameterLike, str] | list[ParameterLike, str],
-    nslds: tuple[ParameterLike] | list[ParameterLike],
-    islds: tuple[ParameterLike] | list[ParameterLike] | None,
-    mslds: tuple[ParameterLike] | list[ParameterLike] | None,
-    demaglocs: tuple[ParameterLike] | list[ParameterLike] | None,
-    demagwidths: tuple[ParameterLike] | list[ParameterLike] | None,
+        Parameters
+        ----------
+        vfp_attrs : VfpAttrType
+            Key names are parameter names, while dict values are
+            values of each parameter.
+        """
+        attr_dict = {}
+        # transform all arrays to lists to be compatible with init.
+        for key, seq in vfp_attrs.items():
+            if isinstance(seq, np.ndarray):
+                seq = cast(np.ndarray, seq)
+                attr_dict[key] = seq.astype(float).tolist()
+            else:
+                attr_dict[key] = seq
+        # alter the roughness entry.
+        attr_dict["roughnesses"] = [
+            val if ~np.isnan(val) else "conformal" for val in attr_dict
+        ]
+        del attr_dict["conformal"]
+        del attr_dict["name"]
+        vfp = cls(**attr_dict)
+        return vfp
+
+
+def _check_init_input(  # noqa : PLR0912, PLR0913
+    thicknesses: Sequence[ParameterLike],
+    roughnesses: Sequence[ParameterLike | Literal["conformal"]],
+    nslds: Sequence[ParameterLike],
+    islds: Sequence[ParameterLike] | None,
+    mslds: Sequence[ParameterLike] | None,
+    demaglocs: Sequence[ParameterLike] | None,
+    demagwidths: Sequence[ParameterLike] | None,
     spin_state: Literal["none", "up", "down"],
     max_delta_z: float,
 ) -> tuple[
-    list[ParameterLike | None],
-    list[list[ParameterLike]],
-    list[ParameterLike] | tuple[ParameterLike],
-    list[ParameterLike] | tuple[ParameterLike],
+    Sequence[ParameterLike | None],
+    list[Sequence[ParameterLike]],
+    Sequence[ParameterLike],
+    Sequence[ParameterLike],
     list[int],
 ]:
-    """
-    Check over the input values to the VFP classes.
-
-    Helper function as all types of VFP require similar input structure.
-    """
-    # now check given parameters
+    """Check the input values to concrete ``BaseVFP`` classes."""
     if not demaglocs:  # look for empty lists or None.
-        demaglocs = []
+        demaglocs: list[ParameterLike] = []
 
     if not demagwidths:
-        demagwidths = []
+        demagwidths: list[ParameterLike] = []
 
     if len(demaglocs) != len(demagwidths):
         raise ValueError(
@@ -829,7 +833,7 @@ def check_init_input(  # noqa : PLR0912, PLR0913
             if not isinstance(rough_val, str)
         ]
     ):
-        raise ValueError("Roughness parameters must be > 0 ")
+        raise ValueError("Roughness parameters must be > 0 if not str.")
 
     if len(nslds) != len(thicknesses) + 1:
         raise ValueError(
@@ -838,10 +842,12 @@ def check_init_input(  # noqa : PLR0912, PLR0913
         )
 
     # init a list of where conformal interfaces are:
-    conformal = []
+    conformal: list[int] = []
     for roughness in roughnesses:
         # cannot use a type alias in isinstance so use its value attr
-        if isinstance(roughness, str | ParameterLike.__value__):
+        possible_types = flatten_composite_type_alias(ParameterLike)
+        possible_types.add(str)
+        if isinstance(roughness, tuple(possible_types)):
             if isinstance(roughness, str) and roughness == "conformal":
                 conformal.append(1)
 
@@ -857,7 +863,7 @@ def check_init_input(  # noqa : PLR0912, PLR0913
         else:
             raise ValueError(
                 "The entries within the roughness list must be a float,"
-                " interger, refnx.analysis.parameter or a string =="
+                " integer, refnx or bumps parameters, or a string =="
                 " 'conformal'."
             )
 
@@ -916,5 +922,4 @@ def check_init_input(  # noqa : PLR0912, PLR0913
             " VFP.",
             stacklevel=2,
         )
-
     return roughnesses_alt, all_slds, demaglocs, demagwidths, conformal
