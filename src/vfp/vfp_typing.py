@@ -6,7 +6,6 @@ from typing import (
     Protocol,
     TypeAliasType,
     TypedDict,
-    TypeIs,
     get_args,
 )
 
@@ -34,6 +33,10 @@ try:
 except ImportError as ie:
     print(f"{ie} refnx packages not installed.")
     type refnxparameters = float | int
+try:
+    from typing import TypeIs
+except ImportError:
+    from typing_extensions import TypeIs
 
 type ParameterLike = (float | int | bumpsparameters | refnxparameters)
 
