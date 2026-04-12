@@ -48,7 +48,7 @@ slds = (2.07, 3.47, 0.21, 6.37)
 # create a VFP object.
 vfp = VFP(slds, thicknesses, roughnesses)
 
-# plot SLD, volume fraction proflie & stochastic model of interface.
+# plot SLD, volume fraction profile & stochastic model of interface.
 vfp.plot()
 plt.show()
 ```
