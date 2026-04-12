@@ -6,6 +6,7 @@ from typing import (
     Protocol,
     TypeAliasType,
     TypedDict,
+    TypeIs,
     get_args,
 )
 
@@ -143,3 +144,13 @@ def flatten_composite_type_alias(tp) -> set[type]:
     for arg in args:
         atoms.update(flatten_composite_type_alias(arg))
     return atoms
+
+
+def _is_nested_tuple(t: tuple) -> TypeIs[tuple[tuple, ...]]:
+    return all(isinstance(v, tuple) for v in t)
+
+
+def _is_tuple(t: tuple) -> TypeIs[tuple[int | float, ...]]:
+    return all(
+        isinstance(v, int | float | np.integer | np.floating) for v in t
+    )
