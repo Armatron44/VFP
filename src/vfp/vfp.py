@@ -53,7 +53,7 @@ except ImportError as ie:
     )
 
 
-class VFP(BaseVFP):
+class VFP(BaseVFP[int | float]):
     """Describes SLD profiles of interfaces from fronting to backing.
 
     SLD profiles are calculated by generating volume fraction profiles.
@@ -138,16 +138,28 @@ class VFP(BaseVFP):
             checked_res
         )
 
+        # convert parameters to bumpsParameters
+        thicknesses_p = self._createparam(thicknesses, "thicknesses")
+        demaglocs_p = self._createparam(demaglocs, "demaglocs")
+        demagwidths_p = self._createparam(demagwidths, "demagwidths")
+        roughnesses_p = self._createparam(roughnesses_alt, "roughnesses")
+        all_slds = map(self._createparam, all_slds, ["nsld", "isld", "msld"])
+
         arr_attrs = [
-            thicknesses,
-            roughnesses_alt,
+            thicknesses_p,
+            roughnesses_p,
             *all_slds,
-            demaglocs,
-            demagwidths,
-            conformal,
+            demaglocs_p,
+            demagwidths_p,
         ]
 
-        other_attrs = (orientation, spin_state, sld_constraint, max_delta_z)
+        other_attrs = (
+            conformal,
+            orientation,
+            spin_state,
+            sld_constraint,
+            max_delta_z,
+        )
 
         # init VFPAttrs object via parent class method
         self._vfp_attrs = self._init_vfp_attrs(
@@ -162,8 +174,24 @@ class VFP(BaseVFP):
     @override
     def _createparam(
         self, params: Sequence[ParameterLike | None], nameid: str
-    ):
-        raise NotImplementedError
+    ) -> list[int | float | None]:
+        """Create a list of bump parameter objects.
+
+        Parameters
+        ----------
+        param : Sequence[ParameterLike | None]
+            Sequence of parameter values.
+        nameid : str
+            The name of the collective parameters.
+        """
+        output: list[int | float | None] = []
+        for p in params:
+            if p is None:
+                if nameid == "roughnesses":
+                    output.append(None)
+            else:
+                output.append(float(p))
+        return output
 
     @override
     def set_parameter_prior(self) -> None:
@@ -210,7 +238,9 @@ class VFP(BaseVFP):
 
 if HAS_REFNX:
 
-    class refnxVFP(Component, BaseVFP):  # noqa: N801
+    class refnxVFP(  # noqa: N801
+        Component, BaseVFP[refnxParameter | _BinaryOp]
+    ):
         """VFP for use with refnx."""
 
         def __init__(  # noqa: PLR0913
@@ -243,7 +273,7 @@ if HAS_REFNX:
             roughnesses_alt, all_slds, demaglocs, demagwidths, conformal = (
                 checked_res
             )
-            # convert parameters to refnxParameters
+            # convert parameters to refnxParameters or _BinaryOps
             thicknesses_p = self._createparam(thicknesses, "thicknesses")
             demaglocs_p = self._createparam(demaglocs, "demaglocs")
             demagwidths_p = self._createparam(demagwidths, "demagwidths")
@@ -257,10 +287,10 @@ if HAS_REFNX:
                 *all_slds,
                 demaglocs_p,
                 demagwidths_p,
-                conformal,
             ]
 
             other_attrs = (
+                conformal,
                 orientation,
                 spin_state,
                 sld_constraint,
@@ -401,8 +431,7 @@ if HAS_REFNX:
                     pars_dict[par_type][idx].vary = True
 
         def slabs(self, structure: Structure | None = None) -> np.ndarray:
-            """
-            Generate array representation of the `refnxVFP`.
+            """Generate array representation of the ``refnxVFP``.
 
             A 2D np.array using the thicknesses, slds and islds of the
             microslabs.
@@ -410,13 +439,8 @@ if HAS_REFNX:
             Parameters
             ----------
             structure : refnx.reflect.Structure, optional
-                The refnx.reflect.Structure hosting this VFP component.
+                The ``refnx.reflect.Structure`` hosting this VFP component.
                 Defaults to None.
-
-            Raises
-            ------
-            TypeError: if the VFP is not part of a refnx.reflect.Structure,
-                    this function will raise a ValueError.
 
             Returns
             -------
@@ -506,8 +530,8 @@ if HAS_REFNX:
             self,
             params: Sequence[ParameterLike | None],
             nameid: str,
-        ) -> Sequence[ParameterLike | None]:
-            """Get list of Parameters (or ops) / None.
+        ) -> list[refnxParameter | _BinaryOp | None]:
+            """Get list of ``refnx.Parameter``s (or ops) / None.
 
             The parameters do not having to be varying.
 
@@ -551,36 +575,29 @@ if HAS_REFNX:
                     else:
                         layer_strs.append(None)
 
-            output: list[ParameterLike | None] = []
+            output: list[refnxParameter | _BinaryOp | None] = []
             for layer_str, par in zip(layer_strs, params, strict=False):
-                if isinstance(par, _BinaryOp):
-                    output.append(
-                        par
-                    )  # keep as _BinaryOp until parameters property.
-                elif nameid == "roughnesses":
-                    if par is not None:
-                        output.append(
-                            possibly_create_parameter(
-                                par,
-                                name=f"{self.name} - {nameid} - {layer_str}",
-                            )
-                        )
-                    else:
-                        output.append(None)
-                else:
+                if isinstance(par, int | float | _BinaryOp | refnxParameter):
                     output.append(
                         possibly_create_parameter(
                             par,
                             name=f"{self.name} - {nameid} - {layer_str}",
                         )
                     )
-
+                elif nameid == "roughnesses" and par is None:
+                    output.append(None)
+                elif isinstance(par, _BinaryOp):
+                    output.append(
+                        par
+                    )  # keep as _BinaryOp until parameters property.
             return output
 
 
 if HAS_REFL1D:
 
-    class refl1dVFP(Layer, BaseVFP):  # noqa: N801
+    class refl1dVFP(  # noqa: N801
+        Layer, BaseVFP[bumpsParameter | Expression]
+    ):
         """VFP for use with refl1d."""
 
         def __init__(  # noqa: PLR0913
@@ -630,10 +647,10 @@ if HAS_REFL1D:
                 *all_slds,
                 demaglocs_p,
                 demagwidths_p,
-                conformal,
             ]
 
             other_attrs = (
+                conformal,
                 orientation,
                 spin_state,
                 sld_constraint,
@@ -658,14 +675,13 @@ if HAS_REFL1D:
         def set_parameter_prior(
             self, priors: dict[str, dict[int, tuple[float, float]]]
         ) -> None:
-            """
-            Set bounds on `bumpsParameter`s in `self.vfp_attrs`.
+            """Set bounds on ``bumpsParameter``s in ``self.vfp_attrs``.
 
             Use this function to set the prior for any parameters
             that are to be fit / sampled.
 
             The key names on the first level of the dictionary must
-            match the names of the attributes in `self.vfp_attrs`. The
+            match the names of the attributes in ``self.vfp_attrs``. The
             key values of the second level of the dictionaries should
             match the indices of the parameters you wish to set priors for.
 
@@ -673,14 +689,14 @@ if HAS_REFL1D:
             ----------
             priors: dict[str, dict[int, tuple[float, float]]]
                 Nested dictionary of priors to be applied to
-                `bumpsParameter`s. The outer dictionary takes a str key to
+                ``bumpsParameter``s. The outer dictionary takes a str key to
                 indicate what type of parameter (e.g 'thickness') should be
                 given a prior. The available choices of parameters are those
-                in `self.vfp_attrs`. The inner dictionary takes a int key to
+                in ``self.vfp_attrs``. The inner dictionary takes a int key to
                 index into which specific parameter in the specified parameter
                 type. The inner dictionary can currently only take a
                 tuple[float, float] for lower and upper bounds (flat prior)
-                to apply to the `bumpsParameter`s in `self.vfp_attrs`.
+                to apply to the ``bumpsParameter``s in ``self.vfp_attrs``.
                 See Example below.
 
             Example
@@ -720,7 +736,7 @@ if HAS_REFL1D:
             """Return reference to VFPAttributes object setup in init."""
             return self._vfp_attrs
 
-        def to_dict(self) -> dict[str | str, list[ParameterLike]]:
+        def to_dict(self) -> dict[str | str, list[bumpsParameter]]:
             """Get a dict repr of ``VFPattributes``.
 
             For use with bumps. Used when saving a refl1d model details
@@ -728,13 +744,13 @@ if HAS_REFL1D:
 
             Returns
             -------
-            dict[str | str, list[ParameterLike]]
+            dict[str | str, list[bumpsParameter]]
                 repr of the refl1d.vfp_attrs.
             """
             return to_dict(self.vfp_attrs.__dict__)
 
         def layer_parameters(self) -> dict[str, list[bumpsParameter]]:
-            """Get `bumpsParameter``s in ``refl1dVFP``.
+            """Get ``bumpsParameter``s in ``refl1dVFP``.
 
             Will return key, value pairs of ``bumpsParameter``s in ``nslds``,
             ``thicknesses``, ``roughnesses``, ``mslds``, ``islds`` for varying
@@ -882,19 +898,15 @@ if HAS_REFL1D:
             self,
             params: Sequence[ParameterLike | None],
             nameid: str,
-        ) -> Sequence[ParameterLike | None]:
-            """Create a list of ``bumpsParameter``s.
+        ) -> list[bumpsParameter | Expression | None]:
+            """Create a list of bump parameter objects.
 
             Parameters
             ----------
-            param : tuple[ParameterLike | None] | list[ParameterLike | None]
+            param : Sequence[ParameterLike | None]
                 Sequence of parameter values.
             nameid : str
                 The name of the collective parameters.
-
-            Returns
-            -------
-                list[ParameterLike | None]
             """
             # create a list of strings that describe what each parameter is.
             # depends on which parameters we are dealing with.
@@ -929,18 +941,17 @@ if HAS_REFL1D:
                     else:
                         layer_strs.append(None)
 
-            output = []
+            output: list[bumpsParameter | Expression | None] = []
             for layer_str, par in zip(layer_strs, params, strict=False):
-                if nameid == "roughnesses":
-                    if par is not None:
-                        output.append(
-                            bumpsParameter.default(
-                                par,
-                                name=f"{self.name} - {nameid} - {layer_str}",
-                            )
+                if isinstance(par, int | float | bumpsParameter | Expression):
+                    output.append(
+                        bumpsParameter.default(
+                            par,
+                            name=f"{self.name} - {nameid} - {layer_str}",
                         )
-                    else:
-                        output.append(None)
+                    )
+                elif nameid == "roughnesses" and par is None:
+                    output.append(None)
                 elif isinstance(par, Expression):
                     try:  # check we can extract all objects in par.
                         exp_ps = par.parameters()
@@ -964,14 +975,6 @@ if HAS_REFL1D:
                     output.append(
                         par
                     )  # keep as Expression until parameters property.
-                else:
-                    output.append(
-                        bumpsParameter.default(
-                            par,
-                            name=f"{self.name} - {nameid} - {layer_str}",
-                        )
-                    )
-
             return output
 
 

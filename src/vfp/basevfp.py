@@ -7,7 +7,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal, Self, TypeVar, cast
+from typing import Generic, Literal, Self, TypeVar, cast
 
 # third party
 import numpy as np
@@ -37,6 +37,8 @@ from vfp.vfp_typing import (
     flatten_composite_type_alias,
 )
 
+P = TypeVar("P", bound=ParameterLike)
+"""Type hint a generic type of parameters within ParameterLike."""
 V = TypeVar("V", bound="BaseVFP")
 """Type hint a generic subclass of ``BaseVFP``."""
 
@@ -254,7 +256,7 @@ class VFPAttributes:
         return self._cached_indices
 
 
-class BaseVFP(ABC):
+class BaseVFP(ABC, Generic[P]):
     """Base class of vfp classes in vfp.py.
 
     ``process_model`` is the main function.
@@ -596,7 +598,7 @@ class BaseVFP(ABC):
             Middle plot = volume fraction profiles
             Bottom plot = surface profiles
         This can be altered by specifying a different order in
-        `plots_required`.
+        ``plots_required``.
 
         Parameters
         ----------
@@ -613,16 +615,16 @@ class BaseVFP(ABC):
             Specifies which interface is defined as z = 0 by index.
             If not specified, defaults to first interface.
         fig : Figure | None, optional.
-            If supplied, plots will be plotted on `fig`.
+            If supplied, plots will be plotted on ``fig``.
             By default a new Figure will be created.
         sld_plot_kwargs : SldPlotKwargType | None, optional
-            Kwargs to be passed to `vfp.plotting.PlotType._plot_sld`.
+            Kwargs to be passed to ``vfp.plotting.PlotType._plot_sld``.
             By default None.
         vfp_plot_kwargs : VfpPlotKwargType | None, optional
-            Kwargs to be passed to `vfp.plotting.PlotType._plot_vfp`.
+            Kwargs to be passed to ``vfp.plotting.PlotType._plot_vfp``.
             By default None.
         surface_plot_kwargs : SurfacePlotKwargType | None, optional
-            Kwargs to be passed to `vfp.plotting.PlotType._plot_surfaces`.
+            Kwargs to be passed to ``vfp.plotting.PlotType._plot_surfaces``.
             By default None.
 
         Returns
@@ -673,8 +675,9 @@ class BaseVFP(ABC):
 
     def _init_vfp_attrs(
         self,
-        arr_attrs: list[Sequence[ParameterLike | None]],
+        arr_attrs: Sequence[Sequence[P | None]],
         other_attrs: tuple[
+            list[int],
             Literal["front", "back"],
             Literal["none", "up", "down"],
             SldConstraintType | None,
@@ -696,9 +699,10 @@ class BaseVFP(ABC):
             mslds,
             demaglocs,
             demagwidths,
-            conformal,
-        ) = list(map(np.array, arr_attrs))
-        orientation, spin_state, sld_constraint, max_delta_z = other_attrs
+        ) = list(map(np.asarray, arr_attrs))
+        (conformal, orientation, spin_state, sld_constraint, max_delta_z) = (
+            other_attrs
+        )
         attrs = VFPAttributes(
             nslds=nslds,
             thicknesses=thicknesses,
@@ -711,7 +715,7 @@ class BaseVFP(ABC):
             demagwidths=demagwidths,
             sld_constraint=sld_constraint,
             max_delta_z=max_delta_z,
-            conformal=conformal,
+            conformal=np.asarray(conformal),
             name=name,
         )
         return attrs
@@ -751,7 +755,7 @@ class BaseVFP(ABC):
     @abstractmethod
     def _createparam(
         self, params: Sequence[ParameterLike | None], nameid: str
-    ) -> Sequence[ParameterLike | None]:
+    ) -> Sequence[P | None]:
         """Get ``ParameterLike``s for fitting software."""
         raise NotImplementedError
 
