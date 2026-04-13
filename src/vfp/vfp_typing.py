@@ -24,7 +24,7 @@ try:
     type bumpsparameters = bumpsExpr | bumpsParam
 except ImportError as ie:
     print(f"{ie} refl1d & bumps packages not installed.")
-    type bumpsparameter = float | int
+    type bumpsparameters = float | int
 try:
     from refnx.analysis import Parameter as refnxParam
     from refnx.analysis.parameter import _BinaryOp as refnxOp
@@ -38,7 +38,7 @@ try:
 except ImportError:
     from typing_extensions import TypeIs
 
-type ParameterLike = (float | int | bumpsparameters | refnxparameters)
+type ParameterLike = float | int | bumpsparameters | refnxparameters
 
 type VFPAttrType = dict[
     str,
