@@ -7,6 +7,7 @@ from typing import (
     TypeAliasType,
     TypedDict,
     get_args,
+    overload,
 )
 
 import numpy as np
@@ -153,7 +154,15 @@ def _is_nested_tuple(t: tuple) -> TypeIs[tuple[tuple, ...]]:
     return all(isinstance(v, tuple) for v in t)
 
 
+@overload
+def _is_flat_float_or_int_tuple(
+    t: tuple, float_or_int: type[int]
+) -> TypeIs[tuple[int, ...]]: ...
+@overload
+def _is_flat_float_or_int_tuple(
+    t: tuple, float_or_int: type[float] = float
+) -> TypeIs[tuple[float, ...]]: ...
 def _is_flat_float_or_int_tuple(
     t: tuple, float_or_int: type[float] | type[int] = float
-) -> TypeIs[tuple[float, ...]]:
+) -> TypeIs[tuple[float | int, ...]]:
     return all(isinstance(v, float_or_int) for v in t)
