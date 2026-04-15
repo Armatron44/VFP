@@ -6,7 +6,7 @@ from functools import lru_cache
 import numpy as np
 import scipy
 
-from vfp.vfp_typing import _is_nested_tuple, _is_tuple
+from vfp.vfp_typing import _is_flat_float_or_int_tuple, _is_nested_tuple
 
 # microslices of diff 1e-5 with neighbouring slices are equivalent.
 MICROSLICE_EQUIVALENCE_THRESHOLD = 1e-5
@@ -163,7 +163,7 @@ def calc_zeds(
     points = np.rint((-zstart + zend) / mxdz + 1).astype(int)
     zeds = np.linspace(zstart, zend, num=points, dtype=np.float64)
     zeds_tup = arr_to_tuple(zeds)
-    if not _is_tuple(zeds_tup):
+    if not _is_flat_float_or_int_tuple(zeds_tup):
         raise ValueError("Expected flat tuple of floats, got nested tuple.")
     return zeds_tup
 
@@ -385,8 +385,8 @@ def calc_indices(
     )
     reduce_diff_arr = np.all(difference_arr, axis=0)
     (indices,) = np.nonzero(reduce_diff_arr)
-    indices_tup = arr_to_tuple(indices)
-    if not _is_tuple(indices_tup):
+    indices_tup = arr_to_tuple(indices, int)
+    if not _is_flat_float_or_int_tuple(indices_tup, int):
         raise ValueError(
             f"Expected flat tuple, got nested tuple: {indices_tup}."
         )
@@ -601,7 +601,7 @@ def heaviside_step(z: np.ndarray, loc: float = 0) -> np.ndarray:
 
 
 def arr_to_tuple(
-    arr: np.ndarray,
+    arr: np.ndarray, flat_elem_type: type[float] | type[int] = float
 ) -> tuple:
     """Convert arrays to tuples for caching.
 
@@ -609,11 +609,13 @@ def arr_to_tuple(
     ----------
     arr : np.ndarray
         Array to convert to tuples.
+    flat_elem_type : type[float] | type[int], optional.
+        A type to coerce the elements of arr to.
 
     Returns
     -------
-    tuple[float, ...] | tuple[tuple[float, ...], ...]
-        tuple or nested tuple of floats.
+    tuple
+        tuple or nested tuple of float or int.
     """
     if not isinstance(arr, np.ndarray):
         raise TypeError(f"Expected a numpy array, got {type(arr)}.")
@@ -624,6 +626,6 @@ def arr_to_tuple(
         if arr.ndim > 1:
             return tuple(_internal_convert_to_tuple(rw) for rw in arr)
         else:  # if down to 1D array
-            return tuple(v for v in arr)
+            return tuple(flat_elem_type(v) for v in arr)
 
     return _internal_convert_to_tuple(arr)

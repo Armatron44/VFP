@@ -153,7 +153,7 @@ def _is_nested_tuple(t: tuple) -> TypeIs[tuple[tuple, ...]]:
     return all(isinstance(v, tuple) for v in t)
 
 
-def _is_tuple(t: tuple) -> TypeIs[tuple[int | float, ...]]:
-    return all(
-        isinstance(v, int | float | np.integer | np.floating) for v in t
-    )
+def _is_flat_float_or_int_tuple(
+    t: tuple, float_or_int: type[float] | type[int] = float
+) -> TypeIs[tuple[float, ...]]:
+    return all(isinstance(v, float_or_int) for v in t)
