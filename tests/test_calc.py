@@ -637,21 +637,38 @@ def test_reduce_vfp_and_magcomp(
     [
         pytest.param(
             np.array([0, 20, 30]),
-            (0, 20, 30),
-            id="First arrtotuple test",
+            nullcontext((0, 20, 30)),
+            id="First arr_to_tuple test",
         ),
         pytest.param(
             np.array(
                 [[2.07, 3.47, 0.2, 6.7], [0, 1, 0, 0], [3e-6, 2e-6, 1e-6, 0]]
             ),
-            ((2.07, 3.47, 0.2, 6.7), (0, 1, 0, 0), (3e-6, 2e-6, 1e-6, 0)),
-            id="Second arrtotuple test",
+            nullcontext(
+                ((2.07, 3.47, 0.2, 6.7), (0, 1, 0, 0), (3e-6, 2e-6, 1e-6, 0))
+            ),
+            id="Second arr_to_tuple test",
+        ),
+        pytest.param(
+            [5, 3, 2],
+            pytest.raises(TypeError),
+            id="Third arr_to_tuple test - not array.",
+        ),
+        pytest.param(
+            np.array(
+                [[[5, 3, 2], [1, 2, 4]], [[0.1, 1.4, 2.1], [1.1, 4.7, 5.5]]]
+            ),
+            nullcontext(
+                (((5, 3, 2), (1, 2, 4)), ((0.1, 1.4, 2.1), (1.1, 4.7, 5.5)))
+            ),
+            id="Fourth arr_to_tuple test",
         ),
     ],
 )
 def test_arr_to_tuple(
     tuple_input,
-    expected_result: tuple,
+    expected_result,
 ):
-    out = arr_to_tuple(tuple_input)
-    np.testing.assert_allclose(out, desired=expected_result)
+    with expected_result as e:
+        out = arr_to_tuple(tuple_input)
+        assert_allclose(out, desired=e)
