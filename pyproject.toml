@@ -29,6 +29,8 @@ deptry = "^0.23.0"
 pathos = "^0.3.4"
 pre-commit = "^4.2.0"
 isort = "^6.0.1"
+hogben = "^3.1.1"
+ty = "^0.0.29"
 
 [tool.poetry.group.docs.dependencies]
 myst-nb = "^1.2.0"
@@ -61,9 +63,11 @@ src = ["src"]
 target-version = "py312"
 line-length = 78
 
+
 [tool.ruff.lint]
 select = [
     "A",    # prevent using keywords that clobber python builtins
+    "D",    # docstrings
     "B",    # bugbear: security warnings
     "E",    # pycodestyle
     "F",    # pyflakes
@@ -81,5 +85,5 @@ select = [
     "PLW1514", # unspecified-encoding (in preview)
 ]
 
-# Exclude specific paths or files
-exclude = ["tests/"]
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"

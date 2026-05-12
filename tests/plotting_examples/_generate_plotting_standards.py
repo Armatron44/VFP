@@ -1,4 +1,5 @@
-"""Script to generate plots to test against.
+"""Script to generate plots to ensure continuity in plotting.py.
+
 These plots should not be regenerated unless some plotting change is required.
 """
 
@@ -18,7 +19,9 @@ def figs_to_arr(figs: list[Figure]) -> list[np.ndarray]:
     for fig in figs:
         fig.canvas.draw()
         width, height = fig.get_size_inches() * fig.get_dpi()
-        rgba_buffer = fig.canvas.buffer_rgba()
+        rgba_buffer = (
+            fig.canvas.buffer_rgba()  # ty: ignore[unresolved-attribute]
+        )
         image_array = np.asarray(rgba_buffer, dtype=np.uint8)
         image_array = image_array.reshape(int(height), int(width), 4)
         image_arrs.append(image_array)
@@ -29,7 +32,7 @@ def save_all_plot_data(image_arrs: dict[str, np.ndarray]):
     np.savez_compressed(
         file=pathlib.Path(__file__).parent
         / pathlib.Path(r"plotting_examples.npz"),
-        **image_arrs,
+        **image_arrs,  # ty : ignore[invalid-argument-type]
     )
 
 
@@ -171,14 +174,17 @@ addn_plot_kwargs = [
         "surface_plot_kwargs": {"surface_rng": surface_rng},
     },
     {
-        "align_at": 2,
+        "align_at_interface": 2,
         "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
         "sld_plot_kwargs": {"microslice": True, "total_sld": False},
         "surface_plot_kwargs": {"surface_rng": surface_rng},
     },
     {
         "plots_required": ["sld", "vfp"],
-        "vfp_plot_kwargs": {"layer_materials": materials_by_layer},
+        "vfp_plot_kwargs": {
+            "layer_materials": materials_by_layer,
+            "labels": ["front", "lay1"],
+        },
         "sld_plot_kwargs": {"microslice": False, "total_sld": False},
     },
     {"plots_required": ["vfp"], "posterior_samples": None},
@@ -187,7 +193,7 @@ addn_plot_kwargs = [
         "surface_plot_kwargs": {"surface_rng": surface_rng},
     },
     {
-        "align_at": 3,
+        "align_at_interface": 3,
         "plots_required": ["surfaces", "vfp"],
         "surface_plot_kwargs": {"surface_rng": surface_rng},
     },
