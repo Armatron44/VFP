@@ -1,4 +1,4 @@
-"""Concrete implementations of ``BaseVFP``."""
+"""Concrete implementations of :class:`vfp.basevfp.BaseVFP`."""
 
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ class VFP(BaseVFP[int | float]):
         sld_constraint: SldConstraintType | None = None,
         max_delta_z: float = 0.5,
     ) -> None:
-        """Init a ``VFP``.
+        """Init a :class:`VFP`.
 
         Parameters
         ----------
@@ -95,25 +95,25 @@ class VFP(BaseVFP[int | float]):
             Magnetic scattering length densities of each layer within the
             volume fraction profile. Defaults to None.
         spin_state : str, optional
-            Defines if slds should be calculated as nuclear (spin_state =
-            'none'), nuclear+magnetic (spin_state = 'up') or nuclear-magnetic
-            (spin_state = 'down'). Defaults to 'none'.
+            Defines if slds should be calculated as nuclear (``spin_state =
+            'none'``), nuclear+magnetic (``spin_state = 'up'``) or
+            nuclear-magnetic (``spin_state = 'down'``). Defaults to
+            ``'none'``.
         orientation : str, optional
             Defines if incident radiation passed through fronting or backing.
-            Through the fronting = (orientation = 'front'), through
-            the backing = (orientation = 'back'). Useful for co-refinement
+            Through the fronting = (``orientation = 'front'``), through
+            the backing = (``orientation = 'back'``). Useful for co-refinement
             of solid-liquid NR data with air-solid x-ray reflectometry data.
-            Optional, defaults to 'front'.
+            Optional, defaults to ``'front'``.
         demaglocs : Sequence[ParameterLike] | None, optional
-            If supplied, must either be a tuple/list of an even number of
-            ParameterLike objects. The parameters declare the centre point of
-            a Gaussian CDF. The parameters are consecutive, so the z location
-            of parameter 2 will be parameter 1 value + parameter 2 value.
-            Defaults to None.
+            If supplied, must be a sequence of an even number of parameters.
+            The parameters declare the centre point of a Gaussian CDF. The
+            parameters are consecutive, so the z location of parameter 2 will
+            be parameter 1 value + parameter 2 value. Defaults to None.
         demagwidths : Sequence[ParameterLike] | None. optional
-            If supplied, must either be a tuple/list of an even number of
-            ParameterLike objects. The parameters declare the width of a
-            Gaussian CDF. Defaults to None.
+            If supplied, must either be a sequence of an even number of
+            parameters. The parameters define the width of a Gaussian CDF.
+            Defaults to None.
         sld_constraint : SldConstraintType | None, optional
             User defined object used to handle SLD constraints between layers.
             Defaults to None.
@@ -174,8 +174,8 @@ class VFP(BaseVFP[int | float]):
     @override
     def _createparam(
         self, params: Sequence[ParameterLike | None], nameid: str
-    ) -> list[int | float | None]:
-        """Create a list of bump parameter objects.
+    ) -> list[float | None]:
+        """Coerce all ``params`` to floats or None.
 
         Parameters
         ----------
@@ -184,7 +184,7 @@ class VFP(BaseVFP[int | float]):
         nameid : str
             The name of the collective parameters.
         """
-        output: list[int | float | None] = []
+        output: list[float | None] = []
         for p in params:
             if p is None:
                 if nameid == "roughnesses":
@@ -201,7 +201,9 @@ class VFP(BaseVFP[int | float]):
     def transform(
         self, wanted_vfp: Literal["VFP", "refnxVFP", "refl1dVFP"]
     ) -> refnxVFP | refl1dVFP:
-        """Transform a ``VFP`` to a ``refnxVFP`` or ``refl1dVFP``.
+        """Transform a :class:`VFP` to a different VFP type.
+
+        Transforms to :class:`refnxVFP` or :class:`refl1dVFP`.
 
         Parameters
         ----------
@@ -211,7 +213,7 @@ class VFP(BaseVFP[int | float]):
         Raises
         ------
         ValueError
-            If vfp_type is not "refl1dVFP" or "refnxVFP".
+            If ``wanted_vfp`` is not "refl1dVFP" or "refnxVFP".
 
         Returns
         -------
@@ -257,6 +259,54 @@ if HAS_REFNX:
             sld_constraint: SldConstraintType | None = None,
             max_delta_z: float = 0.5,
         ) -> None:
+            """Init a :class:`refnxVFP`.
+
+            Parameters
+            ----------
+            nslds : Sequence[ParameterLike]
+                Nuclear scattering length densities of each material in the
+                model.
+            thicknesses : Sequence[ParameterLike]
+                Thicknesses of layers in the model. These control the
+                midpoint-to-midpoint width of a layer's transition to and from
+                other materials.
+            roughnesses : Sequence[ParameterLike]
+                Roughnesses of layers. These control the width of interfaces
+                between adjacent layers in the volume fraction profile.
+            islds : Sequence[ParameterLike] | None, optional.
+                Imaginary scattering length densities of each layer within the
+                model. Defaults to None.
+            mslds : Sequence[ParameterLike] | None, optional.
+                Magnetic scattering length densities of each layer within the
+                volume fraction profile. Defaults to None.
+            spin_state : str, optional
+                Defines if slds should be calculated as nuclear
+                (``spin_state = 'none'``), nuclear+magnetic
+                (``spin_state = 'up'``) or nuclear-magnetic
+                (``spin_state = 'down'``). Defaults to ``'none'``.
+            orientation : str, optional
+                Defines if incident radiation passed through fronting or
+                backing. Through the fronting = (``orientation = 'front'``),
+                through the backing = (``orientation = 'back'``). Useful for
+                co-refinement of solid-liquid NR data with air-solid x-ray
+                reflectometry data. Optional, defaults to ``'front'``.
+            demaglocs : Sequence[ParameterLike] | None, optional
+                If supplied, must be a sequence of an even number of
+                parameters. The parameters declare the centre point of a
+                Gaussian CDF. The parameters are consecutive, so the z
+                location of parameter 2 will be parameter 1 value + parameter
+                2 value. Defaults to None.
+            demagwidths : Sequence[ParameterLike] | None. optional
+                If supplied, must either be a sequence of an even number of
+                parameters. The parameters define the width of a Gaussian CDF.
+                Defaults to None.
+            sld_constraint : SldConstraintType | None, optional
+                User defined object used to handle SLD constraints between
+                layers. Defaults to None.
+            max_delta_z : float, optional
+                Defines the approximate thickness of a microslice across the
+                VFP. Defaults to 0.5 angstrom.
+            """
             self.name = "refnxVFP"
             # check some of the input pars & process roughnesses.
             checked_res = _check_init_input(
@@ -312,13 +362,13 @@ if HAS_REFNX:
 
         @property
         def parameters(self) -> Parameters:
-            """Collates ``refnxParameter``s in ``self.vfp_attrs``.
+            r"""Collates ``refnxParameter``\ s in :attr:`refnxVFP.vfp_attrs`.
 
             refnx uses this property when collating parameters in a component.
-            Will return unique `refnxParameter`s in `nslds`, `thicknesses`,
-            `roughnesses`, `mslds`, `islds` for varying and non-varying
-            parameters. If not defined, `mslds` and `islds` are set as fixed
-            at 0.
+            Will return unique ``refnxParameter``\ s in ``nslds``,
+            ``thicknesses``, ``roughnesses``, ``mslds``, ``islds`` for varying
+            and non-varying parameters. If not defined, ``mslds`` and
+            ``islds`` are set as fixed at 0.
 
             If demaglocs and demagwidths are not defined, these will not be
             added to parameters.
@@ -359,14 +409,14 @@ if HAS_REFNX:
                 str, dict[int, tuple[float, float] | PDF | Interval]
             ],
         ) -> None:
-            """Set bounds on ``refnxParameter``s in ``self.vfp_attrs``.
+            r"""Set ``refnxParameter``\ s priors.
 
             Use this function to set the prior for any parameters
             that are to be fit / sampled.
 
             The key names on the first level of the dictionary must
-            match the names of the attributes in `self.vfp_attrs`. The
-            key values of the second level of the dictionaries should
+            match the names of the attributes in :attr:`refnxVFP.vfp_attrs`.
+            The key values of the second level of the dictionaries should
             match the indices of the parameters you wish to set priors for.
 
             Parameters
@@ -375,15 +425,16 @@ if HAS_REFNX:
                 str, dict[int, tuple[float, float] | PDF | Interval]
             ]
                 Nested dictionary of priors to be applied to
-                `refnxParameter`s. The outer dictionary takes a str key to
+                ``refnxParameter``\ s. The outer dictionary takes a str key to
                 indicate what type of parameter (e.g 'thickness') should be
                 given a prior. The available choices of parameters are those
-                in `self.vfp_attrs`. The inner dictionary takes a int key to
-                index into which specific parameter in the specified parameter
-                type. The inner dictionary can take a tuple[float, float],
-                `refnx.analysis.PDF` or `refnx.analysis.Interval` to be
-                applied to the refnxParameters in `self.vfp_attrs`.
-                See Example below.
+                in :attr:`refnxVFP.vfp_attrs`. The inner dictionary takes a
+                int key to index into which specific parameter in the
+                specified parameter type. The inner dictionary can take a
+                tuple[float, float], ``refnx.analysis.PDF`` or
+                ``refnx.analysis.Interval`` to be
+                applied to the ``refnxParameter``\ s in
+                :attr:`refnxVFP.vfp_attrs`.
 
             Example
             -------
@@ -431,7 +482,7 @@ if HAS_REFNX:
                     pars_dict[par_type][idx].vary = True
 
         def slabs(self, structure: Structure | None = None) -> np.ndarray:
-            """Generate array representation of the ``refnxVFP``.
+            """Generate array representation of the :class:`refnxVFP`.
 
             A 2D np.array using the thicknesses, slds and islds of the
             microslabs.
@@ -467,7 +518,9 @@ if HAS_REFNX:
         def transform(
             self, wanted_vfp: Literal["VFP", "refnxVFP", "refl1dVFP"]
         ) -> VFP | refl1dVFP:
-            """Transform ``refnxVFP`` to a ``VFP`` or ``refl1dVFP``.
+            """Transform a :class:`refnxVFP` to a different VFP type.
+
+            Transforms to :class:`VFP` or :class:`refl1dVFP`.
 
             Parameters
             ----------
@@ -497,7 +550,7 @@ if HAS_REFNX:
         @override
         @property
         def varying_parameters(self) -> dict[str, refnxParameter]:
-            """Gets parameters that vary in this ``refnxVFP``.
+            """Gets parameters that vary in this :class:`refnxVFP`.
 
             Returns
             -------
@@ -512,7 +565,7 @@ if HAS_REFNX:
         def varying_parameters(
             self, values_dict: dict[str, ParameterLike]
         ) -> None:
-            """Set the values of the ``refnxVFP.varying_parameters``.
+            """Set the values of the :attr:`refnxVFP.varying_parameters`.
 
             Parameters
             ----------
@@ -531,7 +584,7 @@ if HAS_REFNX:
             params: Sequence[ParameterLike | None],
             nameid: str,
         ) -> list[refnxParameter | _BinaryOp | None]:
-            """Get list of ``refnx.Parameter``s (or ops) / None.
+            r"""Get list of ``refnx.Parameter``\ s (or ops) / None.
 
             The parameters do not having to be varying.
 
@@ -614,6 +667,54 @@ if HAS_REFL1D:
             sld_constraint: SldConstraintType | None = None,
             max_delta_z: float = 0.5,
         ) -> None:
+            """Init a :class:`refl1dVFP`.
+
+            Parameters
+            ----------
+            nslds : Sequence[ParameterLike]
+                Nuclear scattering length densities of each material in the
+                model.
+            thicknesses : Sequence[ParameterLike]
+                Thicknesses of layers in the model. These control the
+                midpoint-to-midpoint width of a layer's transition to and from
+                other materials.
+            roughnesses : Sequence[ParameterLike]
+                Roughnesses of layers. These control the width of interfaces
+                between adjacent layers in the volume fraction profile.
+            islds : Sequence[ParameterLike] | None, optional.
+                Imaginary scattering length densities of each layer within the
+                model. Defaults to None.
+            mslds : Sequence[ParameterLike] | None, optional.
+                Magnetic scattering length densities of each layer within the
+                volume fraction profile. Defaults to None.
+            spin_state : str, optional
+                Defines if slds should be calculated as nuclear
+                (``spin_state = 'none'``), nuclear+magnetic
+                (``spin_state = 'up'``) or nuclear-magnetic
+                (``spin_state = 'down'``). Defaults to ``'none'``.
+            orientation : str, optional
+                Defines if incident radiation passed through fronting or
+                backing. Through the fronting = (``orientation = 'front'``),
+                through the backing = (``orientation = 'back'``). Useful for
+                co-refinement of solid-liquid NR data with air-solid x-ray
+                reflectometry data. Optional, defaults to ``'front'``.
+            demaglocs : Sequence[ParameterLike] | None, optional
+                If supplied, must either be a tuple/list of an even number of
+                ParameterLike objects. The parameters declare the centre point
+                of a Gaussian CDF. The parameters are consecutive, so the z
+                location of parameter 2 will be parameter 1 value + parameter
+                2 value. Defaults to None.
+            demagwidths : Sequence[ParameterLike] | None. optional
+                If supplied, must either be a tuple/list of an even number of
+                ParameterLike objects. The parameters declare the width of a
+                Gaussian CDF. Defaults to None.
+            sld_constraint : SldConstraintType | None, optional
+                User defined object used to handle SLD constraints between
+                layers. Defaults to None.
+            max_delta_z : float, optional
+                Defines the approximate thickness of a microslice across the
+                VFP. Defaults to 0.5 angstrom.
+            """
             self.name = "refl1dVFP"
             # check some of the input pars & process roughnesses.
             checked_res = _check_init_input(
@@ -675,29 +776,29 @@ if HAS_REFL1D:
         def set_parameter_prior(
             self, priors: dict[str, dict[int, tuple[float, float]]]
         ) -> None:
-            """Set bounds on ``bumpsParameter``s in ``self.vfp_attrs``.
+            r"""Set ``bumpsParameter``\ s priors.
 
             Use this function to set the prior for any parameters
             that are to be fit / sampled.
 
             The key names on the first level of the dictionary must
-            match the names of the attributes in ``self.vfp_attrs``. The
-            key values of the second level of the dictionaries should
+            match the names of the attributes in :attr:`refl1dVFP.vfp_attrs`.
+            The key values of the second level of the dictionaries should
             match the indices of the parameters you wish to set priors for.
 
             Parameters
             ----------
             priors: dict[str, dict[int, tuple[float, float]]]
                 Nested dictionary of priors to be applied to
-                ``bumpsParameter``s. The outer dictionary takes a str key to
+                ``bumpsParameter``\ s. The outer dictionary takes a str key to
                 indicate what type of parameter (e.g 'thickness') should be
                 given a prior. The available choices of parameters are those
-                in ``self.vfp_attrs``. The inner dictionary takes a int key to
-                index into which specific parameter in the specified parameter
-                type. The inner dictionary can currently only take a
-                tuple[float, float] for lower and upper bounds (flat prior)
-                to apply to the ``bumpsParameter``s in ``self.vfp_attrs``.
-                See Example below.
+                in :attr:`refl1dVFP.vfp_attrs`. The inner dictionary takes a
+                int key to index into which specific parameter in the
+                specified parameter type. The inner dictionary can currently
+                only take a tuple[float, float] for lower and upper bounds
+                (flat prior) to apply to the ``bumpsParameter``\ s in
+                :attr:`refl1dVFP.vfp_attrs`. See Example below.
 
             Example
             -------
@@ -733,11 +834,11 @@ if HAS_REFL1D:
 
         @property
         def vfp_attrs(self) -> VFPAttributes:
-            """Return reference to VFPAttributes object setup in init."""
+            """Return reference to :class:`VFPAttributes`."""
             return self._vfp_attrs
 
         def to_dict(self) -> dict[str | str, list[bumpsParameter]]:
-            """Get a dict repr of ``VFPattributes``.
+            """Get a dict repr of :class:`VFPAttributes`.
 
             For use with bumps. Used when saving a refl1d model details
             as a .json file.
@@ -745,17 +846,17 @@ if HAS_REFL1D:
             Returns
             -------
             dict[str | str, list[bumpsParameter]]
-                repr of the refl1d.vfp_attrs.
+                repr of :attr:`refl1dVFP.vfp_attrs`.
             """
             return to_dict(self.vfp_attrs.__dict__)
 
         def layer_parameters(self) -> dict[str, list[bumpsParameter]]:
-            """Get ``bumpsParameter``s in ``refl1dVFP``.
+            r"""Get ``bumpsParameter``\ s in :class:`refl1dVFP`.
 
-            Will return key, value pairs of ``bumpsParameter``s in ``nslds``,
-            ``thicknesses``, ``roughnesses``, ``mslds``, ``islds`` for varying
-            and non-varying parameters. If not defined, ``mslds`` and
-            ``islds`` are set as fixed at 0.
+            Will return key, value pairs of ``bumpsParameter``\ s in
+            ``nslds``, ``thicknesses``, ``roughnesses``, ``mslds``, ``islds``
+            for varying and non-varying parameters. If not defined, ``mslds``
+            and ``islds`` are set as fixed at 0.
 
             If demaglocs and demagwidths are not defined, these will not be
             returned.
@@ -763,8 +864,6 @@ if HAS_REFL1D:
             Returns
             -------
             dict[str, list[bumpsParameter]]
-                Parameters with key equal to the name of the ``refl1dVFP``
-                parameters.
             """
             # remove empty arrays
             p_arr_dict = {}
@@ -798,11 +897,11 @@ if HAS_REFL1D:
             return extract_ps
 
         def render(self, probe: NeutronProbe, slabs: Microslabs) -> None:
-            """Append microslice thickness, SLDs and iSLDs to ``Microslabs``.
+            """Append microslice thickness, SLDs and iSLDs to ``slabs``.
 
-            ``Microslabs`` is passed to the render function of the
-            ``refl1dVFP`` by refl1d's ``Experiment``. Also updates the
-            ``self.thickness`` value of the ``refl1dVFP``.
+            ``slabs`` is passed to the render function of the
+            :class:`refl1dVFP` by refl1d's ``Experiment``. Also updates the
+            :attr:`self.thickness` value of the :class:`refl1dVFP`.
 
             Parameters
             ----------
@@ -826,7 +925,9 @@ if HAS_REFL1D:
         def transform(
             self, wanted_vfp: Literal["VFP", "refnxVFP", "refl1dVFP"]
         ) -> VFP | refnxVFP:
-            """Transform ``refl1dVFP`` to a ``VFP`` or ``refnxVFP``.
+            """Transform :class:`refl1dVFP` to a different VFP type.
+
+            Transforms to either a :class:`VFP` or :class:`refnxVFP`.
 
             Parameters
             ----------
@@ -856,7 +957,7 @@ if HAS_REFL1D:
         @override
         @property
         def varying_parameters(self) -> dict[str, bumpsParameter]:
-            """Fit parameters from ``refl1dVFP``.
+            """Fit parameters from :class:`refl1dVFP`.
 
             Returns
             -------
@@ -876,7 +977,7 @@ if HAS_REFL1D:
         def varying_parameters(
             self, values_dict: dict[str, ParameterLike]
         ) -> None:
-            """Set the values of ``refl1dVFP.varying_parameters``.
+            """Set the values of :attr:`refl1dVFP.varying_parameters`.
 
             Parameters
             ----------
@@ -988,7 +1089,8 @@ def init_specific_vfp(
 ) -> refnxVFP | refl1dVFP | VFP:
     """Load a type of VFP.
 
-    Called by transform methods of child classes of `vfp.basevfp.BaseVFP`.
+    Called by transform methods of child classes of
+    :class:`vfp.basevfp.BaseVFP`.
 
     Parameters
     ----------

@@ -38,18 +38,18 @@ from vfp.vfp_typing import (
 )
 
 P = TypeVar("P", bound=ParameterLike)
-"""Type hint a generic type of parameters within ParameterLike."""
+"""Generic type of parameters within :class:`vfp.vfp_typing.ParameterLike`."""
 V = TypeVar("V", bound="BaseVFP")
-"""Type hint a generic subclass of ``BaseVFP``."""
+"""Generic subclass of :class:`BaseVFP`."""
 
 
 @dataclass
 class VFPAttributes:
-    """Internal structure to hold parameters given to concrete ``BaseVFP``s.
+    """Holds parameters given to concrete :class:`BaseVFP`s.
 
-    Used for internal vfp calculations, and not intended to be set by user.
+    Used for internal vfp calculations, and not intended to be directly set.
     Caching here is used to avoid having to recalculate particular properties
-    during a call to ``BaseVFP.process_model``.
+    during a call to :meth:`BaseVFP.process_model`.
     """
 
     nslds: np.typing.NDArray[np.float64]
@@ -67,23 +67,25 @@ class VFPAttributes:
     name: str
 
     _zeds_dependents: dict[str, tuple[float, ...]] = field(
-        init=False, default_factory=dict[str, tuple[float, ...]], repr=False
+        init=False, default_factory=dict[str, tuple], repr=False
     )
-    """thicknesses and roughnesses when ``calc_zeds`` last called."""
+    """thicknesses and roughnesses when :func:`vfp.calc.calc_zeds` last
+    called."""
     _vfp_dependents: dict[str, tuple[float, ...]] = field(
-        init=False, default_factory=dict[str, tuple[float, ...]], repr=False
+        init=False, default_factory=dict[str, tuple], repr=False
     )
-    """thicknesses and roughnesses when ``calc_vfp`` last called."""
+    """thicknesses and roughnesses when :func:`vfp.calc.calc_vfp` last
+    called."""
     _indices_dependents: dict[str, tuple[float, ...]] = field(
-        init=False, default_factory=dict[str, tuple[float, ...]], repr=False
+        init=False, default_factory=dict[str, tuple], repr=False
     )
     """Thickness, roughnesses, demag_locs, demag_widths and mslds when
-    ``calc_indices`` last called."""
+    :func:`vfp.calc.calc_indices` last called."""
     _demag_arr_dependents: dict[str, tuple[float, ...]] = field(
         init=False, default_factory=dict[str, tuple[float, ...]], repr=False
     )
     """Thickness, roughnesses, demag_locs, demag_widths and mslds when
-    ``calc_demag_array`` last called."""
+    :func:`vfp.calc.calc_demag_array` last called."""
     _cached_zeds: tuple[float, ...] = field(
         init=False, default_factory=tuple[float, ...], repr=False
     )
@@ -99,27 +101,27 @@ class VFPAttributes:
 
     @property
     def tup_thicks(self) -> tuple[float, ...]:
-        """Tuple variant of ``VFPAttributes.thicknesses`` for caching."""
+        """Tuple variant of :attr:`VFPAttributes.thicknesses` for caching."""
         return tuple(self.thicknesses.astype(float))
 
     @property
     def tup_mslds(self) -> tuple[float, ...]:
-        """Tuple variant of ``VFPAttributes.mslds`` for caching."""
+        """Tuple variant of :attr:`VFPAttributes.mslds` for caching."""
         return tuple(self.mslds.astype(float))
 
     @property
     def tup_demag_locs(self) -> tuple[float, ...]:
-        """Tuple variant of ``VFPAttributes.demaglocs`` for caching."""
+        """Tuple variant of :attr:`VFPAttributes.demaglocs` for caching."""
         return tuple(self.demaglocs.astype(float))
 
     @property
     def tup_demag_widths(self) -> tuple[float, ...]:
-        """Tuple variant of ``VFPAttributes.demagwidths`` for caching."""
+        """Tuple variant of :attr:`VFPAttributes.demagwidths` for caching."""
         return tuple(self.demagwidths.astype(float))
 
     @property
     def tup_roughs(self) -> tuple[float, ...]:
-        """Tuple variant of ``VFPAttributes.roughnesses`` for caching.
+        """Tuple variant of :attr:`VFPAttributes.roughnesses` for caching.
 
         If a value in roughnesses is None, we set it to a dummy value of 1.
         This value is completely ignored during the vfp calculations, but
@@ -134,8 +136,9 @@ class VFPAttributes:
     def zeds(self) -> tuple[float, ...]:
         """Distance coordinate over total interface.
 
-        If already calculated for combination of ``self.tup_thicks`` and
-        ``self.tup_roughs`` will use cached value.
+        If already calculated for combination of
+        :attr:`VFPAttributes.tup_thicks` and
+        :attr:`VFPAttributes.tup_roughs` will use cached value.
         """
         current_deps = (self.tup_thicks, self.tup_roughs)
         if current_deps == (
@@ -159,11 +162,11 @@ class VFPAttributes:
     def dz(self) -> np.typing.NDArray[np.float64]:
         """The thickness of each microslab.
 
-        When orientation == back, microslabs will have same thicknesses
+        When ``orientation == back``, microslabs will have same thicknesses
         as front, just in reverse order.
 
         This isn't cached as this is only ever called once per call to
-        ``vfp.process_model``.
+        :class:`BaseVFP.process_model`.
         """
         zds = self.zeds  # avoid calling the property more than once.
         dzs = calc_dzs(zds[0], zds[-1], len(zds), self.indices)
@@ -259,13 +262,14 @@ class VFPAttributes:
 class BaseVFP(ABC, Generic[P]):
     """Base class of vfp classes in vfp.py.
 
-    ``process_model`` is the main function.
+    :func:`BaseVFP.process_model` is the main function.
     """
 
     def __repr__(self) -> str:
-        """Get string discription of the VFP.
+        """Get a string discription of the vfp.
 
-        Currently not called by ``refnxVFP`` or ``refl1dVFP``.
+        Currently not called by :class:`vfp.vfp.refnxVFP` or
+        :class:`vfp.vfp.refl1dVFP`.
 
         Returns
         -------
@@ -289,11 +293,10 @@ class BaseVFP(ABC, Generic[P]):
     def process_model(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Calculate the thickness and sld of microslices.
 
-        Main function of ``BaseVFP``. Calculates the length of the VFP,
-        the thicknesses of each microslice and calculates the sld of each
-        microslice. Returns the coherent and imaginary sld values for
-        each microslice and the thickness of each microslice given orientation
-        of sample.
+        Calculates the length of the vfp, the thicknesses of each microslice
+        and calculates the sld of each microslice. Returns the coherent and
+        imaginary sld values for each microslice and the thickness of each
+        microslice given orientation of sample.
 
         Returns
         -------
@@ -341,9 +344,9 @@ class BaseVFP(ABC, Generic[P]):
         """Calculate slds via generation of volume fraction profile.
 
         Initially, the vol fraction profile is calculated, then it is reduced
-        via ``self.init_demag``. slds are calculated and then summed to give
-        coherent slds (nuclear or nuclear +/- magnetic dependent on
-        ``self.spin_state``) and imaginary slds.
+        via :meth:`BaseVFP.init_demag`. Slds are calculated and then summed to
+        give coherent slds (nuclear or nuclear +/- magnetic dependent on
+        :attr:`BaseVFP.spin_state`) and imaginary slds.
 
         Parameters
         ----------
@@ -354,7 +357,8 @@ class BaseVFP(ABC, Generic[P]):
         -------
         np.ndarray
             Three sld contributions across three rows as function of
-            ``self.zeds``. Coherent sld, imaginary sld, magnetic sld.
+            :attr:`VFPAttributes.zeds`. Coherent sld, imaginary sld, magnetic
+            sld.
         """
         vfp = np.asarray(self.vfp_attrs.vfp)
         demag_arr = np.asarray(self.vfp_attrs.demag_arr)
@@ -373,8 +377,8 @@ class BaseVFP(ABC, Generic[P]):
     ) -> np.ndarray:
         """Calculate coherent and imaginary slds.
 
-        Slds are nuclear, imaginary and magnetic.
-        Can be calculated with reduced or full VFP.
+        Slds are nuclear, imaginary and magnetic. Can be calculated with
+        reduced or full VFP.
 
         Parameters
         ----------
@@ -387,7 +391,8 @@ class BaseVFP(ABC, Generic[P]):
         -------
         np.ndarray
             Three sld contributions across three rows as function of
-            `self.zeds`. Nuclear sld, imaginary sld, magnetic sld.
+            :attr:`VFPAttributes.zeds`. Nuclear sld, imaginary sld, magnetic
+            sld.
         """
         # possibly update nslds depending on user supplied constraint class.
         if self.vfp_attrs.sld_constraint is not None:
@@ -495,8 +500,9 @@ class BaseVFP(ABC, Generic[P]):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Get z and sld values from vfp for plotting.
 
-        Returns z values from `self.zeds` and also returns non-microsliced
-        sld values from `self.get_slds` calculated from the VFP.
+        Returns z values from :attr:`VFPAttributes.zeds` and also returns
+        non-microsliced sld values from :meth:`BaseVFP.get_slds` calculated
+        from the VFP.
 
         Parameters
         ----------
@@ -604,8 +610,8 @@ class BaseVFP(ABC, Generic[P]):
         ----------
         plots_required : list[Literal["sld", "vfp", "surfaces"]] | None, opt
             A list of plots required. Possible acceptable string values are
-            "sld", "vfp", "surfaces". The order of the strings in the list
-            will affect the order of the plot. Duplicates will be ignored.
+            ``sld``, ``vfp``, ``surfaces``. The order of the strings in the
+            list will affect the order of the plot. Duplicates are ignored.
         posterior_samples : dict[str, np.ndarray] | None, optional
             Samples from the posterior to plot in the "sld" and "vfp" plots.
             The keys should match the names of varying parameters in the vfp.
@@ -618,19 +624,18 @@ class BaseVFP(ABC, Generic[P]):
             If supplied, plots will be plotted on ``fig``.
             By default a new Figure will be created.
         sld_plot_kwargs : SldPlotKwargType | None, optional
-            Kwargs to be passed to ``vfp.plotting.PlotType._plot_sld``.
+            Kwargs to be passed to :meth:`vfp.plotting.PlotType._plot_sld`.
             By default None.
         vfp_plot_kwargs : VfpPlotKwargType | None, optional
-            Kwargs to be passed to ``vfp.plotting.PlotType._plot_vfp``.
+            Kwargs to be passed to :meth:`vfp.plotting.PlotType._plot_vfp`.
             By default None.
         surface_plot_kwargs : SurfacePlotKwargType | None, optional
-            Kwargs to be passed to ``vfp.plotting.PlotType._plot_surfaces``.
-            By default None.
+            Kwargs to be passed to
+            :meth:`vfp.plotting.PlotType._plot_surfaces`. By default None.
 
         Returns
         -------
-        tuple[Figure, Axes | np.ndarray[Axes]]
-            Figure and axes objects.
+        tuple[Figure, list[Axes]]
         """
         # run check on unique vals in plots_required
         possible_plots = ["sld", "vfp", "surfaces"]
@@ -685,12 +690,7 @@ class BaseVFP(ABC, Generic[P]):
         ],
         name: str,
     ) -> VFPAttributes:
-        """Init ``VFPAttributes`` to hold reference to VFP input parameters.
-
-        Returns
-        -------
-        VFPAttributes
-        """
+        """Init :class:`VFPAttributes` with VFP input parameters."""
         (
             thicknesses,
             roughnesses,
@@ -723,7 +723,7 @@ class BaseVFP(ABC, Generic[P]):
     @property
     @abstractmethod
     def vfp_attrs(self) -> VFPAttributes:
-        """Get ``VFPAttributes`` attached to this vfp."""
+        """Get :class:`VFPAttributes` attached to this vfp."""
         raise NotImplementedError
 
     @abstractmethod
@@ -756,7 +756,7 @@ class BaseVFP(ABC, Generic[P]):
     def _createparam(
         self, params: Sequence[ParameterLike | None], nameid: str
     ) -> Sequence[P | None]:
-        """Get ``ParameterLike``s for fitting software."""
+        """Create parameters of specific type."""
         raise NotImplementedError
 
     @classmethod
@@ -804,7 +804,7 @@ def _check_init_input(  # noqa : PLR0912, PLR0913
     Sequence[ParameterLike],
     list[int],
 ]:
-    """Check the input values to concrete ``BaseVFP`` classes."""
+    """Check the input values of a concrete :class:`BaseVFP` subclass."""
     if not demaglocs:  # look for empty lists or None.
         demaglocs: list[ParameterLike] = []
 
