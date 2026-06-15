@@ -1,4 +1,5 @@
-# Configuration file for the Sphinx documentation builder.
+"""Configuration file for the Sphinx documentation builder."""
+
 #
 # This file only contains a selection of the most common options. For a full
 # list see the documentation:
@@ -7,7 +8,7 @@
 # -- Project information -----------------------------------------------------
 
 project = "vfp"
-copyright = "2024-2025, Alexander Armstrong"  # noqa : A001
+copyright = "2024-2026, Alexander Armstrong"  # noqa : A001
 author = "Alexander Armstrong, Rebecca Welbourn"
 
 # -- General configuration ---------------------------------------------------
@@ -22,6 +23,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.mathjax",
+    "sphinx.ext.autodoc",
 ]
 autoapi_dirs = ["../src"]
 
@@ -42,6 +44,11 @@ myst_enable_extensions = [
     "amsmath",
     "dollarmath",
 ]
+
+# stop type hints appearing in function definition.
+autodoc_typehints = "none"
+# docs for class has class & init docstring.
+autoapi_python_class_content = "both"
 
 html_theme_options = {
     "repository_url": "https://github.com/Armatron44/VFP",
