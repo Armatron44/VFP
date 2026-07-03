@@ -727,14 +727,6 @@ def model_plot(  # noqa: PLR0913
             figsize=(8, 3 * len(plots_required)),
         )
 
-    else:
-        ax_bottom = fig.add_subplot(
-            len(plots_required), 1, len(plots_required)
-        )
-        for i in range(1, len(plots_required)):
-            ax = fig.add_subplot(len(plots_required), 1, i, sharex=ax_bottom)
-            ax.tick_params(labelbottom=False)
-
     # get ax this way so that its a flat list for 1 or multiple axes.
     # sorted by the vertical position of the axis in the plot (top to bottom).
     ax: list[Axes] = sorted(
