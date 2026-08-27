@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable
+from collections import defaultdict
 from enum import IntEnum, StrEnum, auto
+from functools import wraps
 from typing import TYPE_CHECKING, Literal, Self
 
 # third party
@@ -12,7 +13,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+from matplotlib.collections import LineCollection
+from matplotlib.figure import Figure, SubFigure
 from scipy import stats
 
 from vfp.calc import heaviside_step
@@ -26,7 +28,52 @@ from vfp.vfp_typing import (
 if TYPE_CHECKING:
     from vfp.basevfp import V
 
-tab20_cmap = matplotlib.colormaps["tab20"]
+okabe_ito_cmap = plt.get_cmap("okabe_ito")
+okabe_ito_colours = okabe_ito_cmap(range(okabe_ito_cmap.N))[:, :3]
+tab20_cmap = plt.get_cmap("tab20")
+tab20_colours = tab20_cmap(range(tab20_cmap.N))[:, :3]
+
+axtwinx_cache: dict[Figure | SubFigure, Axes] = {}
+
+
+def call_counter(func):
+    """Count how many times a specific function has been called."""
+    func_counter = defaultdict(int)
+
+    @wraps(func)
+    def helper(plttype, ax, *args, **kwargs):
+        fig = ax.get_figure()
+        if ax is None:
+            raise ValueError("ax not connected to a Figure.")
+        func(plttype, ax, *args, _n_call=func_counter[(fig, func)], **kwargs)
+        func_counter[(fig, func)] += 1
+
+    return helper
+
+
+def get_axtwinx(ax: Axes) -> Axes:
+    """Get from cache or set up a twinx of an axis."""
+    fig = ax.get_figure()
+    if fig is None:
+        raise ValueError("Axis is not set on a figure.")
+    axtwinx = axtwinx_cache.get(fig)
+    if axtwinx is None:
+        axtwinx = ax.twinx()
+        axtwinx_cache[fig] = axtwinx
+    return axtwinx
+
+
+def lighten_colour(
+    col: tuple[float, float, float]
+) -> tuple[float, float, float]:
+    """Lighten an rgb colour tuple."""
+    return tuple(
+        matplotlib.colors.hsv_to_rgb(
+            np.minimum(
+                matplotlib.colors.rgb_to_hsv(col) + np.asarray([0, 0, 0.2]), 1
+            )
+        )
+    )
 
 
 class PlotType(StrEnum):
@@ -52,16 +99,17 @@ class PlotType(StrEnum):
             case PlotType.SURFACES_PLOT:
                 self._plot_surfaces(*args, **kw)
 
+    @call_counter
     def _plot_sld(  # noqa : PLR0913
         self,
         ax: Axes,
         vfp: V,
         align_at_interface: int,
-        posterior: bool,
-        get_axtwinx: Callable[[Axes], Axes],
+        posterior_samples: dict[str, np.typing.NDArray[np.float64]] | None,
         *,
         microslice: bool = True,
         total_sld: bool = False,
+        _n_call: int,
     ) -> None:
         """Plot sld profile.
 
@@ -74,11 +122,8 @@ class PlotType(StrEnum):
             interfacial model.
         align_at_interface : int
             Specifies which interface defines z = 0.
-        posterior : bool
-            Flag to indicate if plotting posterior samples when calling
-            function.
-        get_axtwinx : Callable[[Axes], Axes]
-            Pass ax to return a twinned x axes object.
+        posterior_samples : dict[str, np.typing.NDArray[np.float64]] | None
+            Samples from the posterior to plot.
 
         Kwargs
         ------
@@ -91,6 +136,7 @@ class PlotType(StrEnum):
             Else, plots sldn, sldm separately.
             By default, False.
         """
+        ax_twinx = get_axtwinx(ax)
         # get slds to plot (1d z, 2d all_slds (z points, sld type))
         z, all_slds = vfp.z_and_sld(align_at_interface=align_at_interface)
         # get lims that match vfp and surfaces.
@@ -100,66 +146,116 @@ class PlotType(StrEnum):
             z, all_slds = _gen_sld_profile(vfp, z)
 
         ss_condition = vfp.vfp_attrs.spin_state if total_sld else "none"
-        sld_to_plot, sld_label = _tot_sld(all_slds, ss_condition)
-        alpha = 0.03 if posterior else 1
+        num_lines = len(ax.lines) + len(ax_twinx.lines)
+        sld_to_plot, sld_label = _tot_sld(all_slds, ss_condition, _n_call)
+        sld_colour = okabe_ito_colours[num_lines]
         ax.plot(
             z,
             sld_to_plot,
-            color="k",
-            alpha=alpha,
-            label=None if posterior else sld_label,
+            color=sld_colour,
+            label=sld_label,
         )
+        num_lines += 1
         # if plotting slds separate & they are non zero.
         if not total_sld and all_slds[:, 2].any():
+            m_sld_colour = okabe_ito_colours[num_lines]
             ax.plot(
                 z,
                 all_slds[:, 2],
-                color="tab:grey",
-                alpha=alpha,
-                label=None if posterior else r"$\mathrm{SLD}_{\mathrm{m}}$",
+                color=m_sld_colour,
+                label=rf"$\mathrm{{SLD}}_{{\mathrm{{m}}, {_n_call}}}$",
             )
-
+            num_lines += 1
         # plot sldi if any are nonzero.
-        ax_twinx = None
+        h, _ = ax.get_legend_handles_labels()
+        # ax_twinx = None
         if all_slds[:, 1].any():
-            ax_twinx = get_axtwinx(ax)
+            i_sld_colour = okabe_ito_colours[num_lines]
             ax_twinx.plot(
                 z,
                 all_slds[:, 1],
-                color="tab:red",
-                alpha=alpha,
-                label=None if posterior else r"$\mathrm{SLD}_{\mathrm{i}}$",
+                color=i_sld_colour,
+                label=rf"$\mathrm{{SLD}}_{{\mathrm{{i}}, {_n_call}}}$",
             )
-
-        if not posterior:
-            if ax_twinx is not None:
-                ax_twinx.set_ylabel(
-                    r"$\mathrm{SLD}_{\mathrm{i}}$ /"
-                    r" $\mathrm{\AA{}}^{-2} \times 10^{-6}$",
-                    color="tab:red",
+            ax_twinx.set_ylabel(
+                r"$\mathrm{SLD}_{\mathrm{i}}$ /"
+                r" $\mathrm{\AA{}}^{-2} \times 10^{-6}$",
+            )
+            ax_twinx.tick_params(axis="y")
+            ax.set_zorder(
+                ax_twinx.get_zorder() + 1
+            )  # puts nsld and mslds above the isld.
+            ax.patch.set_visible(
+                False
+            )  # make sure the isld isn't obscured by the first axis.
+            ax_twinx_h, _ = ax_twinx.get_legend_handles_labels()
+            h.extend(ax_twinx_h)
+        if posterior_samples is not None:
+            m_sequences, sequences, i_sequences = [], [], []
+            p_samps_lens = set(
+                [len(val) for val in posterior_samples.values()]
+            )
+            for i in range(next(iter(p_samps_lens))):
+                vfp.varying_parameters = {
+                    k: v[i] for k, v in posterior_samples.items()
+                }
+                z, all_slds = vfp.z_and_sld(
+                    align_at_interface=align_at_interface
                 )
-                ax_twinx.tick_params(axis="y", colors="tab:red")
-                ax.set_zorder(
-                    ax_twinx.get_zorder() + 1
-                )  # puts nsld and mslds above the isld.
-                ax.patch.set_visible(
-                    False
-                )  # make sure the isld isn't obscured by the first axis.
-            ax.legend(frameon=False)
-            ax.set_ylabel(r"SLD / $\mathrm{\AA{}}^{-2} \times 10^{-6}$")
-            ax.set_xlim(def_xlower_lim, def_xupper_lim)
+                if microslice:
+                    z, all_slds = _gen_sld_profile(vfp, z)
+                sld_to_plot, _ = _tot_sld(all_slds, ss_condition, _n_call)
+                if not total_sld and all_slds[:, 2].any():
+                    m_sequences.append(np.column_stack((z, all_slds[:, 2])))
+                if all_slds[:, 1].any():
+                    i_sequences.append(np.column_stack((z, all_slds[:, 1])))
+                sequences.append(np.column_stack((z, sld_to_plot)))
+            ax.add_collection(
+                LineCollection(
+                    sequences,
+                    colors=lighten_colour(sld_colour),
+                    alpha=0.03,
+                    zorder=0,
+                )
+            )
+            if m_sequences:
+                ax.add_collection(
+                    LineCollection(
+                        m_sequences,
+                        colors=lighten_colour(m_sld_colour),
+                        alpha=0.03,
+                        zorder=0,
+                    )
+                )
+            if i_sequences:
+                assert ax_twinx is not None
+                ax_twinx.add_collection(
+                    LineCollection(
+                        i_sequences,
+                        colors=lighten_colour(i_sld_colour),
+                        alpha=0.03,
+                        zorder=0,
+                    )
+                )
+        ax.legend(handles=h, frameon=False)
+        ax.set_ylabel(r"SLD / $\mathrm{\AA{}}^{-2} \times 10^{-6}$")
+        ax.set_xlim(def_xlower_lim, def_xupper_lim)
+        ax.set_title("sld", alpha=0)
 
-    def _plot_vfp(  # noqa: PLR0913 PLR0912
+    @call_counter
+    def _plot_vfp(  # noqa : PLR0913
         self,
         ax: Axes,
         vfp: V,
         align_at_interface: int,
-        posterior: bool,
+        posterior_samples: dict[str, np.typing.NDArray[np.float64]] | None,
         *,
         layer_materials: dict[int, dict[str, ParameterLike]] | None = None,
-        colours: tuple[tuple[float, float, float], ...] | None = None,
+        line_colours: np.typing.NDArray[np.float64] | None = None,
+        posterior_colours: np.typing.NDArray[np.float64] | None = None,
         total_vf: bool = True,
         labels: list[str] | None = None,
+        _n_call: int,
     ) -> None:
         """Plot the vfp profile on a given axis.
 
@@ -178,8 +274,8 @@ class PlotType(StrEnum):
             interfacial model.
         align_at_interface : int
             Specifies which interface defines z = 0.
-        posterior : bool
-            Flag to indicate if plotting posterior samples.
+        posterior_samples : dict[str, np.typing.NDArray[np.float64]] | None
+            Samples from the posterior to plot.
 
         Kwargs
         ------
@@ -189,10 +285,12 @@ class PlotType(StrEnum):
             within a given layer and values that are material volume
             fractions. The material names are used as labels, and will
             overwrite the ``labels`` kwarg.
-        colours : tuple[tuple[float, float, float], ...] | None, optional
-            Colours to plot vfp profile. Posterior samples are plotted in
-            every second colour, while the nominal profile of each layer
-            is plotted in every odd colour. matplotlib's tab20 is default.
+        line_colours : np.typing.NDArray[np.float64] | None, optional
+            Colours to plot vfp profile. Defaults to the even colours in
+            matplotlib's tab20.
+        posterior_colours : np.typing.NDArray[np.float64] | None, optional
+            Colours to plot the posterior samples. The default values are
+            matplotlib's tab20 odd colours.
         total_vf : bool, optional.
             If true, plots the total_vf of the representative profiles by
             summing across all layers' volume fractions. Defaults to True.
@@ -203,9 +301,13 @@ class PlotType(StrEnum):
         """
         # get default labels
         def_labels = [
-            f"Layer {i}" for i in range(len(vfp.vfp_attrs.tup_thicks) + 1)
+            rf"$\mathrm{{Layer}}_{_n_call}$ {i}"
+            for i in range(len(vfp.vfp_attrs.tup_thicks) + 1)
         ]
-        def_labels[0], def_labels[-1] = "Fronting", "Backing"
+        def_labels[0], def_labels[-1] = (
+            rf"$\mathrm{{Fronting}}_{_n_call}$",
+            rf"$\mathrm{{Backing}}_{_n_call}$",
+        )
 
         if labels is None:
             labels = def_labels
@@ -223,77 +325,106 @@ class PlotType(StrEnum):
                 labels[i] if i < len(labels) else def_labels[i]
                 for i in range(len(def_labels))
             ]
-        colours = (
-            colours
-            if colours is not None
-            else tab20_cmap.colors  # ty: ignore[unresolved-attribute]
+        line_colours = (
+            line_colours if line_colours is not None else tab20_colours[::2]
         )
-
+        posterior_colours = (
+            posterior_colours
+            if posterior_colours is not None
+            else tab20_colours[1::2]
+        )
         vfs = vfp.vfs_for_display()[0]
         z = vfp.z_and_sld(align_at_interface=align_at_interface)[0]
         xlower_lim, xupper_lim = self._calc_xlims(z)
-
         if layer_materials is not None:
             vfs, labels = self._recalc_vfs_by_materials(
                 layer_materials, vfs, vfp.vfp_attrs.orientation
             )
-
-        if posterior:
-            if vfp.vfp_attrs.orientation == "front":
-                for i, lay_vfp in enumerate(vfs):
-                    ax.plot(
-                        z,
-                        lay_vfp,
-                        alpha=0.05,
-                        color=colours[(1 + (2 * i)) % len(colours)],
-                        zorder=i,
-                    )
-            elif vfp.vfp_attrs.orientation == "back":
-                for i, lay_vfp in enumerate(vfs):
-                    ax.plot(
-                        z,
-                        lay_vfp,
-                        alpha=0.05,
-                        color=colours[  # reverse colour order.
-                            ((2 * len(vfp.vfp_attrs.tup_thicks) + 1) - 2 * i)
-                            % len(colours)
-                        ],
-                        zorder=len(vfp.vfp_attrs.tup_thicks) - i,
-                    )
-        else:
-            if vfp.vfp_attrs.orientation == "front":
-                for i, lay_vfp in enumerate(vfs):
-                    ax.plot(
-                        z,
-                        lay_vfp,
-                        label=labels[i],
-                        zorder=len(vfp.vfp_attrs.tup_thicks) + i,
-                    )
-
-            elif vfp.vfp_attrs.orientation == "back":
-                for i, lay_vfp in enumerate(vfs):
-                    ax.plot(
-                        z,
-                        lay_vfp,
-                        label=labels[i],
-                        color=colours[  # reverse colour order.
-                            (2 * len(vfp.vfp_attrs.tup_thicks) - 2 * i)
-                            % len(colours)
-                        ],
-                        zorder=2 * len(vfp.vfp_attrs.tup_thicks) - i,
-                    )
-
-            if total_vf:
+        num_lines = len(ax.lines)
+        n_layers = vfs.shape[0]
+        colour_indices = np.asarray(
+            [
+                i % len(line_colours)
+                for i in range(num_lines, n_layers + num_lines)
+            ]
+        )
+        # restrict colours to this round of plotting.
+        line_colours = (
+            line_colours[colour_indices[::-1]]
+            if vfp.vfp_attrs.orientation == "back"
+            else line_colours[colour_indices]
+        )
+        posterior_colours = (
+            posterior_colours[colour_indices[::-1]]
+            if vfp.vfp_attrs.orientation == "back"
+            else posterior_colours[colour_indices]
+        )
+        if vfp.vfp_attrs.orientation == "front":
+            for i, lay_vfp in enumerate(vfs):
                 ax.plot(
                     z,
-                    np.sum(vfs, axis=0),
-                    label=r"Total",
-                    linestyle="--",
-                    color="k",
+                    lay_vfp,
+                    label=labels[i],
+                    zorder=i + num_lines,
+                    color=line_colours[i],
                 )
-            ax.set_ylabel(r"Volume Fraction")
-            ax.set_xlim(xlower_lim, xupper_lim)
-            ax.legend(frameon=False)
+
+        elif vfp.vfp_attrs.orientation == "back":
+            for i, lay_vfp in enumerate(vfs):
+                ax.plot(
+                    z,
+                    lay_vfp,
+                    label=labels[i],
+                    color=line_colours[i],
+                    zorder=len(vfp.vfp_attrs.tup_thicks) + num_lines - i,
+                )
+
+        if total_vf:
+            ax.plot(
+                z,
+                np.sum(vfs, axis=0),
+                label=rf"$\mathrm{{Total}}_{_n_call}$",
+                linestyle="--",
+                color="k",
+            )
+
+        if posterior_samples is not None:
+            sequences = []
+            p_samps_lens = set(
+                [len(val) for val in posterior_samples.values()]
+            )
+            for i in range(next(iter(p_samps_lens))):
+                vfp.varying_parameters = {
+                    k: v[i] for k, v in posterior_samples.items()
+                }
+                vfs = vfp.vfs_for_display()[0]
+                if layer_materials is not None:
+                    vfs, _ = self._recalc_vfs_by_materials(
+                        layer_materials, vfs, vfp.vfp_attrs.orientation
+                    )
+                z = vfp.z_and_sld(align_at_interface=align_at_interface)[0]
+                lay_vf_seq = np.column_stack((z, vfs.T))
+                lay_vfps = [
+                    lay_vf_seq[:, np.r_[0, i]] for i in range(1, n_layers + 1)
+                ]
+                sequences.append(lay_vfps)
+            for i in range(n_layers):
+                ax.add_collection(
+                    LineCollection(
+                        [seq[i] for seq in sequences],
+                        colors=posterior_colours[i % len(posterior_colours)],
+                        alpha=0.03,
+                        zorder=(
+                            i + num_lines
+                            if vfp.vfp_attrs.orientation == "front"
+                            else len(vfp.vfp_attrs.tup_thicks) + num_lines - i
+                        ),
+                    )
+                )
+        ax.set_ylabel(r"Volume Fraction")
+        ax.set_xlim(xlower_lim, xupper_lim)
+        ax.legend(frameon=False)
+        ax.set_title("vfp", alpha=0)
 
     def _plot_surfaces(  # noqa: PLR0913
         self,
@@ -347,9 +478,7 @@ class PlotType(StrEnum):
         n_interf = len(vfp.vfp_attrs.tup_thicks)
         # get default colours if non specified.
         colours = (
-            tab20_cmap.colors  # ty: ignore[unresolved-attribute]
-            if surface_colours is None
-            else surface_colours
+            tab20_colours if surface_colours is None else surface_colours
         )
         # reverse and select for fill + points.
         points_colours = colours[: 2 * n_interf + 1 : 2]
@@ -420,7 +549,7 @@ class PlotType(StrEnum):
         # set the x limits to the original x limits before plotting the fills.
         ax.set_xlim(def_xlower_lim, def_xupper_lim)
         ax.set_ylim(ylower, yupper)  # chop off the extra two points
-
+        ax.set_title("surfaces", alpha=0)
         for border in ["top", "bottom", "left", "right"]:
             ax.spines[border].set_zorder(
                 (len(vfp.vfp_attrs.tup_thicks) + 1) * 3
@@ -687,8 +816,8 @@ def model_plot(  # noqa: PLR0913
     align_at_interface : int
         Specifies which interface defines z = 0.
     fig : Figure | None
-        If supplied, plots will be plotted on ``fig``. If None, a new Figure
-        will be created.
+        If supplied, plots defined by ``plots_required`` will be plotted on
+        ``fig``. If None, a new Figure will be created.
     sld_plot_kwargs : SldPlotKwargType | None
         Kwargs to be passed to ``PlotType._plot_sld``.
     vfp_plot_kwargs : VfpPlotKwargType | None
@@ -704,6 +833,10 @@ def model_plot(  # noqa: PLR0913
     if np.abs(align_at_interface) >= len(vfp.vfp_attrs.tup_thicks):
         raise ValueError("align_at_interface must be an index of the layers.")
     # get axes index for required plots.
+    if fig is not None:
+        plots_required = [
+            plot for plot in plots_required if plot != "surfaces"
+        ]
     axes_enum = AxesIndex.from_requested_plots_list(
         requested_plots=plots_required
     )
@@ -726,14 +859,26 @@ def model_plot(  # noqa: PLR0913
             sharex=True,
             figsize=(8, 3 * len(plots_required)),
         )
-
-    # get ax this way so that its a flat list for 1 or multiple axes.
-    # sorted by the vertical position of the axis in the plot (top to bottom).
-    ax: list[Axes] = sorted(
-        fig.axes, key=lambda ax: ax.get_subplotspec().rowspan.start
-    )
-
-    get_sld_axtwinx_fn = _setup_axtwinx_cache()
+        # get ax this way so that its a flat list for 1 or multiple axes.
+        # sorted by the vertical position of the axis in the plot (top to
+        # bottom).
+        ax: list[Axes] = sorted(
+            fig.axes, key=lambda ax: ax.get_subplotspec().rowspan.start
+        )
+    else:
+        # if fig has axes, we have to assume the subplots have original titles
+        # won't over plot surfaces.
+        original_plot_order = [
+            axis.get_title()
+            for axis in fig.axes
+            if axis.get_title() not in ("surfaces", "")
+        ]
+        if not plots_required == original_plot_order:
+            raise ValueError(
+                "plots_required should follow the order of plots_required in"
+                f" the original figure: {original_plot_order}."
+            )
+        ax = [a for a in fig.axes if a.get_title() not in ("surfaces", "")]
 
     # plot posterior samples:
     if posterior_samples is not None and original_ps is not None:
@@ -742,27 +887,6 @@ def model_plot(  # noqa: PLR0913
         # check they are the same length.
         if len(p_samps_lens) != 1:
             raise ValueError("Posterior samples are of different lengths.")
-        plot_fn_args_map_posterior = {
-            PlotType.SLD_PLOT: (
-                vfp,
-                align_at_interface,
-                True,
-                get_sld_axtwinx_fn,
-            ),
-            PlotType.VFP_PLOT: (vfp, align_at_interface, True),
-        }
-
-        length_of_samples = next(iter(p_samps_lens))
-        for i in range(length_of_samples):
-            vfp.varying_parameters = {
-                key: values[i] for key, values in posterior_samples.items()
-            }
-            for axis in axes_enum:
-                # can't plot a posterior on the surfaces plot.
-                if axis.plot_type == PlotType.SURFACES_PLOT:
-                    continue
-                plot_args = plot_fn_args_map_posterior[axis.plot_type]
-                axis.plot_type.plot(ax[axis], *plot_args, **all_plot_kwargs)
 
     # plot main profiles.
     if original_ps is not None:
@@ -772,10 +896,9 @@ def model_plot(  # noqa: PLR0913
         PlotType.SLD_PLOT: (
             vfp,
             align_at_interface,
-            False,
-            get_sld_axtwinx_fn,
+            posterior_samples,
         ),
-        PlotType.VFP_PLOT: (vfp, align_at_interface, False),
+        PlotType.VFP_PLOT: (vfp, align_at_interface, posterior_samples),
         PlotType.SURFACES_PLOT: (vfp, align_at_interface),
     }
 
@@ -785,20 +908,6 @@ def model_plot(  # noqa: PLR0913
 
     ax[-1].set_xlabel(r"Distance over Interface / $\mathrm{\AA{}}$")
     return fig, ax
-
-
-def _setup_axtwinx_cache() -> Callable[[Axes], Axes]:
-    """Set up a cached twinned x axis."""
-    axtwinx_cache: dict[Axes, Axes] = {}
-
-    def get_axtwinx(ax: Axes) -> Axes:
-        axtwinx = axtwinx_cache.get(ax)
-        if axtwinx is None:
-            axtwinx = ax.twinx()
-            axtwinx_cache[ax] = axtwinx
-        return axtwinx
-
-    return get_axtwinx
 
 
 def _gen_sld_profile(
@@ -863,7 +972,7 @@ def _gen_sld_profile(
 
 
 def _tot_sld(
-    all_slds: np.typing.NDArray[np.float64], ss: str
+    all_slds: np.typing.NDArray[np.float64], ss: str, overlay_counter: int
 ) -> tuple[np.typing.NDArray[np.float64], str]:
     """Get sld profile for plotting given spin state.
 
@@ -875,6 +984,8 @@ def _tot_sld(
         2D array containing sldn, sldi, sldm.
     ss : str
         Spin state for conditioning which sld is plotted.
+    overlay_counter: int
+        The number of overplots.
 
     Returns
     -------
@@ -883,12 +994,17 @@ def _tot_sld(
     """
     if ss == "none":
         tot_sld = all_slds[:, 0]
-        sld_label = r"$\mathrm{SLD}_{\mathrm{n}}$"
+        sld_label = rf"$\mathrm{{SLD}}_{{\mathrm{{n}}, {overlay_counter}}}$"
     elif ss == "down":
         tot_sld = all_slds[:, 0] - all_slds[:, 2]
-        sld_label = r"$\mathrm{SLD}_{\mathrm{n}} - \mathrm{SLD}_{\mathrm{m}}$"
+        sld_label = (
+            rf"$\mathrm{{SLD}}_{{\mathrm{{n}}, {overlay_counter}}} - $"
+            rf"$\mathrm{{SLD}}_{{\mathrm{{m}}, {overlay_counter}}}$"
+        )
     elif ss == "up":
         tot_sld = all_slds[:, 0] + all_slds[:, 2]
-        sld_label = r"$\mathrm{SLD}_{\mathrm{n}} + \mathrm{SLD}_{\mathrm{m}}$"
-
+        sld_label = (
+            rf"$\mathrm{{SLD}}_{{\mathrm{{n}}, {overlay_counter}}} + $"
+            rf"$\mathrm{{SLD}}_{{\mathrm{{m}}, {overlay_counter}}}$"
+        )
     return tot_sld, sld_label

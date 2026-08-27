@@ -108,10 +108,12 @@ class VfpPlotKwargType(TypedDict, total=False):
     layers' material name and values that are material volume fraction. All
     keys in the nested dictionaries are used as labels, and will
     overwrite the ``labels`` kwarg in ``VfpPlotKwargType``."""
-    colours: NotRequired[tuple[tuple[float, float, float], ...]]
-    """Colours to plot vfp profile. Posterior samples are plotted in every
-    second colour, while the nominal profile of each layer is plotted in every
-    odd colour."""
+    line_colours: NotRequired[np.typing.NDArray[np.float64]]
+    """Colours to plot vfp profile. Defaults to the even colours in
+    matplotlib's tab20."""
+    posterior_colours: NotRequired[np.typing.NDArray[np.float64]]
+    """Colours to plot the posterior samples. The default values are
+    matplotlib's tab20 odd colours."""
     total_vf: NotRequired[bool]
     """If true, plots the total_vf of the representative profiles by summing
     across all layers' volume fractions."""
