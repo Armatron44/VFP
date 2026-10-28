@@ -198,13 +198,15 @@ def one_minus_cdf(
 
 
 @lru_cache(maxsize=2)
-def calc_vfp(
+def calc_vfp_depc(
     rough: tuple[float, ...],
     thick: tuple[float, ...],
     zeds: tuple[float, ...],
     conformal: tuple[int, ...],
 ) -> tuple[tuple[float, ...], ...]:
     """Get the volume fraction profile for each layer.
+
+    DEPRECIATED.
 
     Parameters
     ----------
@@ -292,6 +294,98 @@ def calc_vfp(
     vfp[counter, :] = (
         1 - vf_sum[-1]
     )  # the backing material is simply 1-everything else.
+    vfp = arr_to_tuple(vfp)
+    if not _is_nested_tuple(vfp):
+        raise ValueError("Expected vfp to be a nested tuple.")
+    return vfp
+
+
+@lru_cache(maxsize=2)
+def calc_vfp(
+    roughs: tuple[float, ...],
+    thicks: tuple[float, ...],
+    zeds: tuple[float, ...],
+    conformal: tuple[int, ...],
+) -> tuple[tuple[float, ...], ...]:
+    r"""Calculate discrete volume fraction profile for interfacial model.
+
+    The volume fraction profile (vfp) for :math:`1, \cdots, L` layers
+    (including fronting (:math:`1`) and backing (:math:`L`) is a vector-valued
+    function:
+    .. math::
+
+    \boldsymbol{\phi}\left(z\right) &= \left[ \phi_1\left(z\right), \cdots,
+    \phi_L\left(z\right) \right].
+
+    Layers can have non-conformal (NC) roughnesses or conformal (C)
+    roughnesses to previous layers. The volume fraction profile is a recursive
+    combination of Normal CDF functions describing each interface between
+    layers:
+
+    .. math::
+
+    \phi_{l, \mathrm{NC}}(z) &= \mathcal{P}_{l}\left(z\right) \left[1 - F_{l}
+    \left( z, \sum^{l}_{i=1}{t_i}, \sigma_{l} \right)\right], \\
+    \phi_{l, \mathrm{C}}(z) &= 1 - \mathcal{P}_{l}\left(z\right)
+    - \sum^{l-1}_{i=1}\phi_{i}(z), \\
+    \mathcal{P}_l\left(z\right) &= \prod_{n \in I_\mathrm{NC}, n < l}{F_{n}
+    \left(z, \sum_{i=1}^{n}{t_i}
+    + \sum_{j \in I_\mathrm{C}, n < j \leq l}{t_j}, \sigma_{n} \right)}.
+
+    Parameters
+    ----------
+    roughs : tuple[float, ...]
+        roughnesses values of the layers.
+    thicks : tuple[float, ...]
+        thicknesses values of the layers.
+    zeds : tuple[float, ...]
+        z values across VFP.
+    conformal : tuple[int, ...]
+        sequence of 0 and 1s.
+        1 indicates conformal interface to everything before,
+        0 indicates non-conformal interface.
+    """
+    roughs_arr = np.asarray(roughs)
+    thicks_arr = np.asarray(thicks)
+    zeds_arr = np.asarray(zeds)
+    conformal_arr = np.asarray(conformal)
+    n_layers = len(thicks)
+    vfp = np.zeros(shape=(n_layers + 1, zeds_arr.size))
+    # get set indices
+    nc_i_mask = conformal_arr == 0
+    (nc_i,) = nc_i_mask.nonzero()
+    (c_i,) = (~nc_i_mask).nonzero()
+    # cumulative locations of interfaces
+    thicks_cs = thicks_arr.cumsum()
+    # calculate vfp for each layer
+    for lay_no in range(n_layers):
+        # calculate \mathcal{P}_l for this layer
+        nc_sub = nc_i[nc_i < lay_no]
+        c_sub = c_i[c_i <= lay_no]
+        if len(nc_sub) > 0:
+            shift = np.array(
+                [thicks_arr[c_sub[c_sub > n]].sum() for n in nc_sub]
+            )
+            locs = thicks_cs[nc_sub] + shift
+            scales = roughs_arr[nc_sub]
+            # vectorize over all lay_no using ndtr which is faster than
+            # stats.norm.cdf
+            cdf_vals = scipy.special.ndtr((zeds_arr[:, None] - locs) / scales)
+            p = cdf_vals.prod(axis=1)
+        else:
+            p = 1.0
+        # calculate vfp for given layer conditional on NC or C.
+        if nc_i_mask[lay_no]:
+            vfp[lay_no, :] = (
+                1
+                - scipy.special.ndtr(
+                    (zeds_arr - thicks_cs[lay_no]) / roughs_arr[lay_no]
+                )
+            ) * p
+        else:
+            vfp[lay_no, :] = 1 - p - vfp[:lay_no, :].sum(axis=0)
+    # backing is 1 - everything before.
+    vfp[-1, :] = 1 - vfp[:-1, :].sum(axis=0)
     vfp = arr_to_tuple(vfp)
     if not _is_nested_tuple(vfp):
         raise ValueError("Expected vfp to be a nested tuple.")
