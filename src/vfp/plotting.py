@@ -785,7 +785,7 @@ def surfaces_for_display(
     return interf_arr
 
 
-def model_plot(  # noqa: PLR0913
+def model_plot(  # noqa: PLR0913 PLR0912
     vfp: V,
     plots_required: list[Literal["sld", "vfp", "surfaces"]],
     posterior_samples: dict[str, np.typing.NDArray[np.float64]] | None,
@@ -832,8 +832,13 @@ def model_plot(  # noqa: PLR0913
     """
     if np.abs(align_at_interface) >= len(vfp.vfp_attrs.tup_thicks):
         raise ValueError("align_at_interface must be an index of the layers.")
-    # get axes index for required plots.
-    if fig is not None:
+    if (
+        fig is not None
+        and len(
+            [line_list for ax in fig.axes for line_list in ax.get_lines()]
+        )
+        > 0
+    ):
         plots_required = [
             plot for plot in plots_required if plot != "surfaces"
         ]
@@ -865,21 +870,49 @@ def model_plot(  # noqa: PLR0913
         ax: list[Axes] = sorted(
             fig.axes, key=lambda ax: ax.get_subplotspec().rowspan.start
         )
+    elif len(fig.axes) == 0:
+        fig.add_subplot(nrows=len(plots_required), ncols=1, sharex=True)
+        ax: list[Axes] = sorted(
+            fig.axes, key=lambda ax: ax.get_subplotspec().rowspan.start
+        )
     else:
-        # if fig has axes, we have to assume the subplots have original titles
-        # won't over plot surfaces.
-        original_plot_order = [
-            axis.get_title()
-            for axis in fig.axes
-            if axis.get_title() not in ("surfaces", "")
-        ]
-        if not plots_required == original_plot_order:
-            raise ValueError(
-                "plots_required should follow the order of plots_required in"
-                f" the original figure: {original_plot_order}."
+        titles = [axis.get_title() for axis in fig.axes]
+        if (
+            len(
+                [line_list for ax in fig.axes for line_list in ax.get_lines()]
             )
-        ax = [a for a in fig.axes if a.get_title() not in ("surfaces", "")]
-
+            == 0
+        ):
+            # do the axes have any data in them? if not, we just plot.
+            ax: list[Axes] = sorted(
+                fig.axes, key=lambda ax: ax.get_subplotspec().rowspan.start
+            )
+            if len(ax) != len(plots_required):
+                raise ValueError(
+                    f"The length of plots_required: {len(plots_required)}, "
+                    "should match the number of axes within fig: "
+                    f"{len(fig.axes)}."
+                )
+        else:
+            if not all(t in ("sld", "vfp", "surfaces") for t in titles):
+                raise ValueError(
+                    "The titles in the supplied figure do not match with"
+                    "expected. If figure passed from previous vfp.plot call, "
+                    "do not change the axis titles."
+                )
+            # if titles already exist for each axis, check the titles
+            # come from a previous call of model_plot.
+            original_plot_order = [
+                title for title in titles if title not in ("surfaces", "")
+            ]
+            if not plots_required == original_plot_order:
+                raise ValueError(
+                    "plots_required should follow the order of plots_required"
+                    f" in the original figure: {original_plot_order}."
+                )
+            ax = [
+                a for a in fig.axes if a.get_title() not in ("surfaces", "")
+            ]
     # plot posterior samples:
     if posterior_samples is not None and original_ps is not None:
         # get length of each set of posterior samples.
