@@ -351,8 +351,8 @@ def test_calc_vfp(
     )
 
     vfp_res = calc_vfp(
-        rough=tuple(roughs),
-        thick=tuple(thicks),
+        roughs=tuple(roughs),
+        thicks=tuple(thicks),
         zeds=tuple(zeds),
         conformal=tuple(conformals),
     )
